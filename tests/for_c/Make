@@ -1,0 +1,21 @@
+CC = gcc
+CFLAGS = -Itests/for_c/include -Isrc/keystore -Wall -Wextra -g
+
+UNITY_SRC = tests/for_c/include/unity.c
+TEST_SRC = tests/for_c/unit_tests/key_store.c
+KEYSTORE_SRC = src/keystore/type.c
+
+TEST_BIN = key_store_test
+
+.PHONY: all test clean
+
+all: $(TEST_BIN)
+
+$(TEST_BIN): $(UNITY_SRC) $(TEST_SRC) $(KEYSTORE_SRC)
+    $(CC) $(CFLAGS) -o $(TEST_BIN) $(UNITY_SRC) $(TEST_SRC) $(KEYSTORE_SRC)
+
+test: $(TEST_BIN)
+    ./$(TEST_BIN)
+
+clean:
+    rm -f $(TEST_BIN)
