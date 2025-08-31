@@ -1,7 +1,7 @@
 #ifndef HASH_BUCKET_LIST_H
 #define HASH_BUCKET_LIST_H
 
-#include "type_definition.h"
+#include "core/type_definition.h"
 #include <stdbool.h>
 
 /// @brief Create a new list node.

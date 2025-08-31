@@ -3,7 +3,7 @@ CFLAGS = -I./include -I../../src/keystore -Wall -Wextra -g
 
 UNITY_SRC = ./include/unity.c
 TEST_SRC := $(wildcard ./unit_tests/*.c)
-KEYSTORE_SRC := $(wildcard ../../src/keystore/*.c)
+KEYSTORE_SRC := $(wildcard ../../src/keystore/*/*.c)
 TEST_BIN = ./key_store_test
 
 .PHONY: all test clean

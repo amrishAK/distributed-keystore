@@ -21,7 +21,7 @@
  */
 
 #include "unity.h"
-#include "hash_functions.h"
+#include "hash/hash_functions.h"
 #include <string.h>
 #include <limits.h>
 

@@ -1,7 +1,7 @@
 #ifndef HASH_BUCKETS_H
 #define HASH_BUCKETS_H
 
-#include "type_definition.h"
+#include "core/type_definition.h"
 #include <stdbool.h>
 
 

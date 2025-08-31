@@ -1,9 +1,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include "key_store.h"
-#include "hash_buckets.h"
-#include "hash_bucket_list.h"
-#include "hash_functions.h"
+#include "bucket/hash_buckets.h"
+#include "bucket/hash_bucket_list.h"
+#include "hash/hash_functions.h"
 
 // global variables
 static hash_bucket *g_hash_buckets_ptr = NULL;
@@ -13,7 +13,7 @@ static int g_hash_seed = 0;
 // function declarations
 bool is_power_of_two(int n);
 int get_bucket_index(uint32_t key_hash);
-void set_list(hash_bucket *hash_bucket_ptr, const char *key, uint32_t key_hash, const unsigned char *data);
+int set_list(hash_bucket *hash_bucket_ptr, const char *key, uint32_t key_hash, const unsigned char *data);
 
 
 int initialise_key_store(int bucket_size) {
@@ -69,10 +69,10 @@ int delete_key(const char *key) {
 
 // Private function definitions
 
-void set_list(hash_bucket *hash_bucket_ptr, const char *key, uint32_t key_hash, const unsigned char *data) {
+int set_list(hash_bucket *hash_bucket_ptr, const char *key, uint32_t key_hash, const unsigned char *data) {
 
     if (hash_bucket_ptr->type != BUCKET_LIST) {
-        return;
+        return -1;
     }
 
     list_node *header_ptr = (list_node *)hash_bucket_ptr->container;
@@ -89,7 +89,7 @@ void set_list(hash_bucket *hash_bucket_ptr, const char *key, uint32_t key_hash, 
         
         if (new_data_node == NULL) {
             // Handle error: memory allocation failed
-            return;
+            return -1;
         }
 
         new_data_node->key = strdup(key);

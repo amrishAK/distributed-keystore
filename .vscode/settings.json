@@ -58,6 +58,8 @@
   "C_Cpp_Runner.msvcSecureNoWarnings": false,
   "files.associations": {
     "type_definition.h": "c",
-    "cstdint": "c"
+    "cstdint": "c",
+    "hash_buckets.h": "c",
+    "string.h": "c"
   }
 }
