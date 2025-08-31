@@ -25,9 +25,6 @@
 #include <string.h>
 #include <limits.h>
 
-void setUp(void) {}
-void tearDown(void) {}
-
 void test_murmurhash_basic(void) {
     const char *key = "testkey";
     uint32_t seed = 42;
@@ -149,8 +146,7 @@ void test_murmurhash_binary_data(void) {
     TEST_ASSERT_EQUAL(hash, hash_function_murmur_32(key_str, seed));
 }
 
-int main(void) {
-    UNITY_BEGIN();
+int test_hash_functions_suite(void) {
     RUN_TEST(test_murmurhash_basic);
     RUN_TEST(test_murmurhash_empty_string);
     RUN_TEST(test_murmurhash_different_keys);
@@ -165,5 +161,5 @@ int main(void) {
     RUN_TEST(test_murmurhash_unicode);
     RUN_TEST(test_murmurhash_repeated_chars);
     RUN_TEST(test_murmurhash_binary_data);
-    return UNITY_END();
+    return 0;
 }

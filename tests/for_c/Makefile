@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -I./include -I../../src/keystore -Wall -Wextra -g
 
 UNITY_SRC = ./include/unity.c
-TEST_SRC := $(wildcard ./unit_tests/*.c)
+TEST_SRC = ./unit_tests/test_runner.c
 KEYSTORE_SRC := $(wildcard ../../src/keystore/*/*.c)
 TEST_BIN = ./key_store_test
 
