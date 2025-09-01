@@ -22,10 +22,11 @@ int update_node_data(data_node *node_ptr, const unsigned char *data, size_t data
  *
  * @return Pointer to the newly created data_node, or NULL if memory allocation fails.
  */
-data_node* create_data_node(const char *key, uint32_t key_hash, const unsigned char *data, size_t data_size) {
-    
-    if(data == NULL || data_size < 0) {
-        return NULL; // Handle invalid data
+data_node* create_data_node(const char *key, uint32_t key_hash, const unsigned char *data, size_t data_size) 
+{
+    // Argument validation
+    if (key == NULL || key[0] == '\0' || data == NULL || data_size == 0) {
+        return NULL; // Invalid key or data
     }
 
     size_t key_len = strlen(key) + 1;
