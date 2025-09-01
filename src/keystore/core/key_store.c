@@ -71,34 +71,7 @@ int delete_key(const char *key) {
 
 int set_list(hash_bucket *hash_bucket_ptr, const char *key, uint32_t key_hash, const unsigned char *data) {
 
-    if (hash_bucket_ptr->type != BUCKET_LIST) {
-        return -1;
-    }
-
-    list_node *header_ptr = (list_node *)hash_bucket_ptr->container;
-
-    list_node *list_node_ptr = find_list_node(header_ptr, key, key_hash);
-
-    if(list_node_ptr != NULL) {
-        // Update existing data
-        list_node_ptr->data->data = (unsigned char *)data;
-        list_node_ptr->data->data_size = sizeof(data);
-    } else {
-        // Insert new data
-        data_node *new_data_node = malloc(sizeof(data_node));
-        
-        if (new_data_node == NULL) {
-            // Handle error: memory allocation failed
-            return -1;
-        }
-
-        new_data_node->key = strdup(key);
-        new_data_node->key_hash = key_hash;
-        new_data_node->data = (unsigned char *)data;
-        new_data_node->data_size = sizeof(data);
-
-        hash_bucket_ptr->container = insert_list_node(header_ptr, key, key_hash, new_data_node);
-    }
+    return 0;
 }
 
 

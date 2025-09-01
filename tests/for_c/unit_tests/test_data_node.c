@@ -63,9 +63,50 @@ void test_update_data_node_null_params(void) {
 void test_update_data_node_size_zero(void) {
     unsigned char data[] = "abc";
     data_node *node = create_data_node("key", 1, data, sizeof(data));
-    unsigned char new_data[] = "xyz";
-    int result = update_data_node(node, new_data, 0);
-    TEST_ASSERT_EQUAL(-1, result);
+    unsigned char new_data[] = "";
+    size_t new_data_size = 0;
+    int result = update_data_node(node, new_data, new_data_size);
+    TEST_ASSERT_EQUAL(0, result);
+    delete_data_node(node);
+}
+
+void test_update_data_node_with_empty_data(void) {
+    unsigned char data[] = "abc";
+    data_node *node = create_data_node("key", 1, data, sizeof(data));
+    unsigned char new_data[] = "";
+    size_t new_data_size = 0;
+    int result = update_data_node(node, new_data, new_data_size);
+    TEST_ASSERT_EQUAL(0, result);
+    delete_data_node(node);
+}
+
+void test_update_data_node_with_bigger_data(void) {
+    unsigned char data[] = "abc";
+    data_node *node = create_data_node("key", 1, data, sizeof(data));
+    unsigned char new_data[] = "abcdefabcdef";
+    size_t new_data_size = sizeof(new_data);
+    int result = update_data_node(node, new_data, new_data_size);
+    TEST_ASSERT_EQUAL(0, result);
+    delete_data_node(node);
+}
+
+void test_update_data_node_with_smaller_data(void) {
+    unsigned char data[] = "abcabcabc";
+    data_node *node = create_data_node("key", 1, data, sizeof(data));
+    unsigned char new_data[] = "ab";
+    size_t new_data_size = sizeof(new_data);
+    int result = update_data_node(node, new_data, new_data_size);
+    TEST_ASSERT_EQUAL(0, result);
+    delete_data_node(node);
+}
+
+void test_update_data_node_with_same_size_data(void) {
+    unsigned char data[] = "abcabcabc";
+    data_node *node = create_data_node("key", 1, data, sizeof(data));
+    unsigned char new_data[] = "abcabcabc";
+    size_t new_data_size = sizeof(new_data);
+    int result = update_data_node(node, new_data, new_data_size);
+    TEST_ASSERT_EQUAL(0, result);
     delete_data_node(node);
 }
 
@@ -83,6 +124,10 @@ int test_data_node_suite(void) {
     RUN_TEST(test_create_data_node_null_params);
     RUN_TEST(test_update_data_node_null_params);
     RUN_TEST(test_update_data_node_size_zero);
+    RUN_TEST(test_update_data_node_with_empty_data);
+    RUN_TEST(test_update_data_node_with_bigger_data);
+    RUN_TEST(test_update_data_node_with_smaller_data);
+    RUN_TEST(test_update_data_node_with_same_size_data);
     RUN_TEST(test_delete_data_node_valid);
     return 0;
 }

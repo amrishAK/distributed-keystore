@@ -10,35 +10,45 @@ typedef enum {
     BUCKET_TREE
 } bucket_type_t;
 
+typedef enum{
+    RED,
+    BLACK
+} rb_tree_color_t;
+
 typedef struct  data_node
 {
-    char *key;
-    uint32_t key_hash;
+    uint32_t key_hash; // Hash of the key (immutable)
     unsigned char *data;
     size_t data_size;
+    char key[];
 } data_node;
 
 typedef struct list_node
 {
-    char *key;
-    uint32_t key_hash;
+    uint32_t key_hash; // Hash of the key (immutable)
     data_node *data;
     struct list_node *next;
 } list_node;
 
 typedef struct  tree_node
 {
-    char *key;
-    uint32_t key_hash;
+    rb_tree_color_t color;
+    uint32_t key_hash; // Hash of the key (immutable)
     data_node *data;
     struct tree_node *left;
     struct tree_node *right;
+    struct tree_node *parent;
+
 } tree_node;
 
 typedef struct  hash_bucket
 {
     bucket_type_t type;
-    void *container; // points to list_node or tree_node
+    union {
+        list_node *list;
+        tree_node *tree;
+    } container;
+
     int count;
 } hash_bucket;
 
