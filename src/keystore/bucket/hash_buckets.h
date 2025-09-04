@@ -11,7 +11,11 @@
 /// @param create_if_missing Whether to create the bucket if it doesn't exist.
 /// @return Pointer to the hash bucket, or NULL if it couldn't be found/created.
 hash_bucket* get_hash_bucket(hash_bucket *hash_bucket_ptr, int index, bool create_if_missing);
-void delete_hash_bucket(hash_bucket *hash_bucket_ptr, int index);
+void delete_hash_bucket(hash_bucket *hash_bucket_ptr);
+int add_node_to_bucket(hash_bucket *hash_bucket_ptr, uint32_t key_hash, data_node *node_ptr);
+data_node* find_node_in_bucket(hash_bucket *hash_bucket_ptr, const char *key, uint32_t key_hash);
+int delete_node_from_bucket(hash_bucket *hash_bucket_ptr, const char *key, uint32_t key_hash);
+bool check_if_bucket_container_exists(hash_bucket *hash_bucket_ptr);
 
 
 

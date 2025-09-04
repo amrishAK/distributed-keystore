@@ -118,6 +118,7 @@ void test_delete_data_node_valid(void) {
 }
 
 int test_data_node_suite(void) {
+    printf("Running data_node tests...\n");
     RUN_TEST(test_create_data_node);
     RUN_TEST(test_update_data_node);
     RUN_TEST(test_delete_data_node_null);
@@ -129,5 +130,6 @@ int test_data_node_suite(void) {
     RUN_TEST(test_update_data_node_with_smaller_data);
     RUN_TEST(test_update_data_node_with_same_size_data);
     RUN_TEST(test_delete_data_node_valid);
+    printf("Completed data_node tests.\n");
     return 0;
 }

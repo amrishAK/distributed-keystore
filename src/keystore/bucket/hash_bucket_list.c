@@ -7,33 +7,28 @@
 list_node* create_new_list_node(uint32_t key_hash, data_node *data);
 bool list_node_hash_equals(list_node *node, uint32_t key_hash, const char *key);
 
-list_node *insert_list_node(list_node *node_header_ptr, uint32_t key_hash, data_node *data)
+int insert_list_node(list_node **node_header_ptr, uint32_t key_hash, data_node *data)
 {
-    // Argument validation
-    if(key_hash < 0 || data == NULL)
-    {
-        return NULL; // Handle invalid parameters
+    if(data == NULL) {
+        return -1; // Invalid data or key
     }
 
     list_node *new_node = create_new_list_node(key_hash, data);
 
-    if(node_header_ptr == NULL) {
-        return new_node;
-    } else {
-        new_node->next = node_header_ptr;
-        return new_node;
+    if(node_header_ptr != NULL)
+    {
+        new_node->next = *node_header_ptr;
     }
+
+    *node_header_ptr = new_node;
+    return 0;
 }
 
-int delete_list_node(list_node *node_header_ptr, const char *key, uint32_t key_hash)
+int delete_list_node(list_node **node_header_ptr, const char *key, uint32_t key_hash)
 {
-    // Argument validation
-    if(key == NULL || key_hash < 0 || node_header_ptr == NULL)
-    {
-        return -1; // Validation failed
-    }
+    if (!node_header_ptr || !*node_header_ptr || !key) return -1;
 
-    list_node *current_node_ptr = node_header_ptr;
+    list_node *current_node_ptr = *node_header_ptr;
     list_node *previous_node_ptr = NULL;
     bool node_found = false;
 
@@ -51,13 +46,13 @@ int delete_list_node(list_node *node_header_ptr, const char *key, uint32_t key_h
 
     if(!node_found)
     {
-        return -1; // Node not found
+        return -1; // Node with specified key and hash not found
     }
 
     // Node found, perform deletion
     if(previous_node_ptr == NULL)
     {
-        node_header_ptr = current_node_ptr->next;
+        *node_header_ptr = current_node_ptr->next;
     }
     else
     {
@@ -69,17 +64,10 @@ int delete_list_node(list_node *node_header_ptr, const char *key, uint32_t key_h
     free(current_node_ptr);
 
     return 0; // Success
-
 }
 
 list_node *find_list_node(list_node *node_header_ptr, const char *key, uint32_t key_hash)
 {
-    // Validate input parameters
-    if(node_header_ptr == NULL || key == NULL || key_hash == 0)
-    {
-        return NULL;
-    }
-
     list_node *found_node = NULL;
 
     list_node *current_node_ptr = node_header_ptr;
@@ -96,6 +84,26 @@ list_node *find_list_node(list_node *node_header_ptr, const char *key, uint32_t 
     }
 
     return found_node;
+}
+
+int delete_all_list_nodes(list_node *node_header_ptr)
+{
+    if(node_header_ptr == NULL) {
+        return 0;
+    }
+
+    list_node *current_node_ptr = node_header_ptr;
+    list_node *next_node_ptr = NULL;
+
+    while (current_node_ptr != NULL)
+    {
+        next_node_ptr = current_node_ptr->next;
+        delete_data_node(current_node_ptr->data);
+        free(current_node_ptr);
+        current_node_ptr = next_node_ptr;
+    }
+
+    return 0; // Success
 }
 
 list_node* create_new_list_node(uint32_t key_hash, data_node *data)

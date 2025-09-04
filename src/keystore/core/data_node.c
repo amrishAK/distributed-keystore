@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include "data_node.h"
 
 // function declaration
@@ -100,6 +101,7 @@ int delete_data_node(data_node *node) {
     if (node == NULL) {
         return -1; // Handle null pointer
     }
+
 
     free(node->data);
     free(node);

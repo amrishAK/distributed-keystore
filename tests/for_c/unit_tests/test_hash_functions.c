@@ -147,6 +147,7 @@ void test_murmurhash_binary_data(void) {
 }
 
 int test_hash_functions_suite(void) {
+    printf("Running hash_function_murmur_32 tests...\n");
     RUN_TEST(test_murmurhash_basic);
     RUN_TEST(test_murmurhash_empty_string);
     RUN_TEST(test_murmurhash_different_keys);
@@ -161,5 +162,6 @@ int test_hash_functions_suite(void) {
     RUN_TEST(test_murmurhash_unicode);
     RUN_TEST(test_murmurhash_repeated_chars);
     RUN_TEST(test_murmurhash_binary_data);
+    printf("Completed hash_function_murmur_32 tests.\n");
     return 0;
 }

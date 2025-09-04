@@ -61,6 +61,7 @@
     "cstdint": "c",
     "hash_buckets.h": "c",
     "string.h": "c",
-    "stdlib.h": "c"
+    "stdlib.h": "c",
+    "key_store.h": "c"
   }
 }
