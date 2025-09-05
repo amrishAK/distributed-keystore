@@ -13,14 +13,11 @@ void test_initialise_key_store(void) {
 void test_set_get_multiple_keys(void) {
     initialise_key_store(32);
     const char *keys[] = {"key1", "key2", "key3", "key4", "key5", "key6"};
-    unsigned char *data[] = {"key1", "key2", "key3", "key4", "key5", "key6"};
-    size_t data_size = sizeof(data[0]); // Use sizeof to match the actual array size
+    const char *data[] = {"key1", "key2", "key3", "key4", "key5", "key6"};
 
     for (int i = 0; i < 6; ++i) {
-        int ret = set_key(keys[i], data[i], sizeof(data[i]));
-        if (!(ret == 0)) {
-            printf("set_key failed for key='%s', data='%s', size=%zu, ret=%d\n", keys[i], data[i], sizeof(data[i]), ret);
-        }
+        const unsigned char *data_ptr = (const unsigned char *)data[i];
+        int ret = set_key(keys[i], data_ptr, strlen(data[i]) + 1);
         TEST_ASSERT_TRUE_MESSAGE(ret == 0 , "set_key failed unexpectedly");
     }
     for (int i = 0; i < 6; ++i) {

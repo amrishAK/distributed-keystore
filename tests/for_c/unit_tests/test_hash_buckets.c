@@ -29,7 +29,7 @@ void test_add_node_to_bucket_and_find(void) {
     size_t data_size = strlen(data) + 1;
     hash_bucket buckets[1] = {0};
     hash_bucket *bucket = get_hash_bucket(buckets, 0, true);
-    data_node *node = create_data_node(key, key_hash, data, data_size);
+    data_node *node = create_data_node(key, key_hash, (const unsigned char *)data, data_size);
 
     int res = add_node_to_bucket(bucket, key_hash, node);
     data_node *found = find_node_in_bucket(bucket, key, key_hash);
@@ -49,7 +49,7 @@ void test_find_node_in_bucket_invalid(void) {
 void test_delete_node_from_bucket(void) {
     const char *key = "key2";
     uint32_t key_hash = 54321;
-    const char data[] = "data2";
+    const unsigned char data[] = "data2";
     size_t data_size = sizeof(data);
     
     hash_bucket buckets[1] = {0};
@@ -257,4 +257,5 @@ int test_hash_buckets_suite(void) {
     RUN_TEST(test_invalid_index);
     RUN_TEST(test_corrupted_bucket_ptr);
     RUN_TEST(test_memory_allocation_failure);
+    return 0;
 }

@@ -134,10 +134,9 @@ uint32_t process_tailing_bytes(const int block_count, uint32_t hash, const uint8
  * last step in a hash function implementation.
  *
  * @param hash The initial hash value to be finalized.
- * @param len The length of the input data that was hashed (may be used for additional mixing).
  * @return The finalized hash value.
  */
-uint32_t finalization(uint32_t hash, size_t len) {
+uint32_t finalization(uint32_t hash) {
     hash ^= hash >> finalization_shift_1;
     hash *= finalization_multiplier_1;
     hash ^= hash >> finalization_shift_2;
@@ -175,7 +174,7 @@ uint32_t hash_function_murmur_32(const char *key,  uint32_t seed) {
 
     hash = process_blocks(block_count, hash, data);
     hash = process_tailing_bytes(block_count, hash, data, len);
-    hash = finalization(hash, len);
+    hash = finalization(hash);
     return hash;
 }
 

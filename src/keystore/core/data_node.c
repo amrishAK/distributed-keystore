@@ -70,7 +70,7 @@ int update_data_node(data_node *node, const unsigned char *data, size_t data_siz
         return -1; // Handle null pointer
     }
 
-    if(data == NULL || data_size < 0) {
+    if(data == NULL) {
         return -1; // Handle invalid data
     }
 
