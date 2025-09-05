@@ -1,3 +1,4 @@
+
 #include "unity.h"
 #include "core/key_store.h"
 #include <string.h>
@@ -23,7 +24,7 @@ void test_set_get_multiple_keys(void) {
     for (int i = 0; i < 6; ++i) {
         data_node *node = get_key(keys[i]);
         TEST_ASSERT_NOT_NULL(node);
-        TEST_ASSERT_EQUAL_UINT8_ARRAY(data[i], node->data, sizeof(data[i]));
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(data[i], node->data, strlen(data[i]) + 1);
     }
 }
 
@@ -188,8 +189,56 @@ void test_null_and_zero_data(void) {
     TEST_ASSERT_EQUAL(-1, set_key(key, data, 0));
 }
 
+void test_set_binary_data(void) {
+    initialise_key_store(8);
+    const char *key = "bin1";
+    unsigned char data[] = {0x00, 0xFF, 0x7E, 0x42, 0x00, 0x10};
+    size_t data_size = sizeof(data);
+    TEST_ASSERT_EQUAL(0, set_key(key, data, data_size));
+    data_node *node = get_key(key);
+    TEST_ASSERT_NOT_NULL(node);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(data, node->data, data_size);
+}
+
+void test_update_binary_data(void) {
+    initialise_key_store(8);
+    const char *key = "bin2";
+    unsigned char data1[] = {0x01, 0x02, 0x03, 0x04};
+    unsigned char data2[] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE};
+    TEST_ASSERT_EQUAL(0, set_key(key, data1, sizeof(data1)));
+    TEST_ASSERT_EQUAL(0, set_key(key, data2, sizeof(data2)));
+    data_node *node = get_key(key);
+    TEST_ASSERT_NOT_NULL(node);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(data2, node->data, sizeof(data2));
+}
+
+void test_delete_binary_data(void) {
+    initialise_key_store(8);
+    const char *key = "bin3";
+    unsigned char data[] = {0xDE, 0xAD, 0xBE, 0xEF};
+    size_t data_size = sizeof(data);
+    TEST_ASSERT_EQUAL(0, set_key(key, data, data_size));
+    TEST_ASSERT_EQUAL(0, delete_key(key));
+    TEST_ASSERT_NULL(get_key(key));
+}
+
+void test_get_binary_data(void) {
+    initialise_key_store(8);
+    const char *key = "bin4";
+    unsigned char data[] = {0x11, 0x22, 0x33, 0x44, 0x55};
+    size_t data_size = sizeof(data);
+    TEST_ASSERT_EQUAL(0, set_key(key, data, data_size));
+    data_node *node = get_key(key);
+    TEST_ASSERT_NOT_NULL(node);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(data, node->data, data_size);
+}
+
 int test_key_store_suite(void) {
     printf("Running key_store tests...\n");
+    RUN_TEST(test_set_binary_data);
+    RUN_TEST(test_update_binary_data);
+    RUN_TEST(test_delete_binary_data);
+    RUN_TEST(test_get_binary_data);
     RUN_TEST(test_initialise_key_store);
     RUN_TEST(test_update_key);
     RUN_TEST(test_delete_key);

@@ -72,19 +72,6 @@ void test_delete_node_from_bucket_invalid(void) {
     TEST_ASSERT_EQUAL_MESSAGE(-1, res, "delete_node_from_bucket should return -1 when bucket is NULL.");
 }
 
-void test_check_if_bucket_container_exists(void) {
-    hash_bucket bucket = {0};
-    bucket.type = BUCKET_LIST;
-    bucket.container.list = NULL;
-
-    TEST_ASSERT_FALSE_MESSAGE(check_if_bucket_container_exists(&bucket), "check_if_bucket_container_exists should return false when container.list is NULL.");
-
-    list_node dummy = {0};
-    bucket.container.list = &dummy;
-
-    TEST_ASSERT_TRUE_MESSAGE(check_if_bucket_container_exists(&bucket), "check_if_bucket_container_exists should return true when container.list is not NULL.");
-}
-
 void test_create_bucket(void) {
     hash_bucket buckets[2] = {0};
     hash_bucket *bucket = get_hash_bucket(buckets, 1, true);
@@ -243,7 +230,6 @@ int test_hash_buckets_suite(void) {
     RUN_TEST(test_find_node_in_bucket_invalid);
     RUN_TEST(test_delete_node_from_bucket);
     RUN_TEST(test_delete_node_from_bucket_invalid);
-    RUN_TEST(test_check_if_bucket_container_exists);
     RUN_TEST(test_create_bucket);
     RUN_TEST(test_unsupported_bucket_type);
     RUN_TEST(test_delete_hash_bucket);

@@ -4,6 +4,7 @@
 
 //function decleration
 hash_bucket* create_bucket(hash_bucket* hash_bucket_ptr, int index);
+bool check_if_bucket_container_exists(hash_bucket *hash_bucket_ptr);
 
 
 hash_bucket*  get_hash_bucket(hash_bucket *hash_bucket_ptr, int index, bool create_if_missing) {
