@@ -62,6 +62,7 @@
     "hash_buckets.h": "c",
     "string.h": "c",
     "stdlib.h": "c",
-    "key_store.h": "c"
+    "key_store.h": "c",
+    "memory_manager.h": "c"
   }
 }
