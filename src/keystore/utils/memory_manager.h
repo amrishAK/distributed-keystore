@@ -126,6 +126,17 @@ void* allocate_memory_from_pool(memory_pool_type_t pool_type);
  */
 void* allocate_memory(size_t size);
 
+
+/**
+ * * @fn reallocate_memory
+ * * @brief Reallocates a memory block to a new size.
+ * @param ptr Pointer to the existing memory block to be reallocated.
+ * @param new_size The new size in bytes for the memory block.
+ * @return A pointer to the reallocated memory block, or NULL if reallocation fails.
+ * @note - It uses standard realloc() internally.
+ */
+void* reallocate_memory(void *ptr, size_t new_size);
+
 /**
  * @fn free_memory
  * @brief Frees the specified memory block.

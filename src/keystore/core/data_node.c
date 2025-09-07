@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "data_node.h"
+#include "utils/memory_manager.h"
 
 // function declaration
 int add_data_to_node(data_node *node, const unsigned char *data, size_t data_size);
@@ -31,7 +32,7 @@ data_node* create_data_node(const char *key, uint32_t key_hash, const unsigned c
     }
 
     size_t key_len = strlen(key) + 1;
-    data_node *node = (data_node *)malloc(sizeof(data_node) + key_len);
+    data_node *node = (data_node *)allocate_memory(sizeof(data_node) + key_len);
     
     if (node == NULL) {
         return NULL; // Handle memory allocation failure
@@ -102,9 +103,8 @@ int delete_data_node(data_node *node) {
         return -1; // Handle null pointer
     }
 
-
-    free(node->data);
-    free(node);
+    free_memory(node->data, NO_POOL);
+    free_memory(node, NO_POOL);
 
     return 0;
 }
@@ -132,7 +132,7 @@ int add_data_to_node(data_node *node, const unsigned char *data, size_t data_siz
         return 0;
     }
 
-    node->data = (unsigned char *)malloc(data_size);
+    node->data = (unsigned char *)allocate_memory(data_size);
     
     if (node->data == NULL) {
         return -1; // Handle memory allocation failure
@@ -193,7 +193,7 @@ int update_node_data(data_node *node_ptr, const unsigned char *data, size_t data
     }
 
     if(node_ptr->data_size != data_size) {
-        unsigned char *new_data = (unsigned char *)realloc(node_ptr->data, data_size);
+        unsigned char *new_data = (unsigned char *)reallocate_memory(node_ptr->data, data_size);
         if (new_data == NULL) {
             return -1; // Handle memory allocation failure
         }

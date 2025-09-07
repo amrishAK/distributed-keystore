@@ -1,9 +1,8 @@
 #include "unity.h"
 #include "bucket/hash_buckets.h"
-#include "bucket/hash_bucket_list.h"
-#include "core/data_node.h"
 #include <stdlib.h>
 #include <string.h>
+#include "utils/memory_manager.h"
 
 static data_node* make_test_data_node(const char *key, uint32_t key_hash, const unsigned char *data, size_t data_size) {
     size_t key_len = strlen(key) + 1;
@@ -49,9 +48,11 @@ void test_get_hash_bucket_out_of_bounds(void) {
 void test_add_and_find_node_in_bucket(void) {
     initialise_hash_buckets(2);
     data_node* dummy_node = make_test_data_node("key1", 123, (unsigned char *)"data", 5);
+    printf("Dummy node created: %p\n", (void*)dummy_node);
     TEST_ASSERT_NOT_NULL_MESSAGE(dummy_node, "Failed to create test data node");
     TEST_ASSERT_EQUAL_MESSAGE(0, add_node_to_bucket(0, 123, dummy_node), "Failed to add node to bucket");
     data_node *found = find_node_in_bucket(0, "key1", 123);
+    printf("Found node: %p\n", (void*)found);
     TEST_ASSERT_NOT_NULL_MESSAGE(found, "Failed to find node in bucket");
     TEST_ASSERT_EQUAL_STRING_MESSAGE("key1", found->key, "Key mismatch");
     cleanup_hash_buckets();
@@ -124,6 +125,7 @@ void test_add_node_after_cleanup(void) {
 }
 
 int test_hash_buckets_suite(void) {
+    initialize_memory_manager((memory_manager_config){ .bucket_size = 10, .pre_allocation_factor = 1.0, .allocate_list_pool = true, .allocate_tree_pool = false });
     printf("Running hash_buckets tests...\n");
     RUN_TEST(test_initialise_and_cleanup_hash_buckets);
     RUN_TEST(test_get_hash_bucket_and_initialization);
@@ -138,6 +140,7 @@ int test_hash_buckets_suite(void) {
     RUN_TEST(test_delete_node_null_key);
     RUN_TEST(test_add_node_after_cleanup);
     printf("hash_buckets tests completed.\n");
+    cleanup_memory_manager();
     return 0;
 }
 

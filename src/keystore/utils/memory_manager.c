@@ -87,6 +87,21 @@ void free_memory(void *ptr, memory_pool_type_t pool_type)
     }
 }
 
+void* reallocate_memory(void *ptr, size_t new_size)
+{
+    if (ptr == NULL || new_size == 0)
+    {
+        return NULL; // Handle invalid parameters
+    }
+
+    void *new_ptr = realloc(ptr, new_size);
+    if (new_ptr == NULL)
+    {
+        return NULL; // Handle reallocation failure
+    }
+    return new_ptr;
+}
+
 /**
  * @fn _create_memory_pool
  * @brief Creates and initializes a memory pool with the specified block size.
