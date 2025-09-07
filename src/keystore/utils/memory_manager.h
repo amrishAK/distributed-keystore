@@ -57,10 +57,10 @@ typedef struct memory_pool {
     char* pool_end_ptr;   // Pointer to the end of the pool memory
     void *next_block_ptr; // Pointer to the next available block
 
-    int total_blocks; // Total number of blocks in the pool
-    int available_blocks; // Number of blocks available for allocation
-    int reusable_blocks;  // Number of blocks available for reuse
-    
+    unsigned int total_blocks; // Total number of blocks in the pool
+    unsigned int available_blocks; // Number of blocks available for allocation
+    unsigned int reusable_blocks;  // Number of blocks available for reuse
+
     void ** free_block_list; // Array of pointers to free blocks
     bool is_initialized; // Flag to indicate if the pool is initialized
 

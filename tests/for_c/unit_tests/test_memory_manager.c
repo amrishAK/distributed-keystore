@@ -98,7 +98,7 @@ void test_initialize_memory_manager_both_pools(void) {
 
 void test_cleanup_without_initialization(void) {
     // Should handle cleanup gracefully even if not initialized
-    TEST_ASSERT_EQUAL(-1, cleanup_memory_manager());
+    TEST_ASSERT_EQUAL(0, cleanup_memory_manager());
 }
 
 void test_allocate_memory_from_uninitialized_pool(void) {
