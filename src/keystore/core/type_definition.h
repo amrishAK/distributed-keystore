@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 typedef enum {
     NONE,
@@ -50,6 +51,7 @@ typedef struct  hash_bucket
     } container;
 
     int count;
+    bool is_initialized;
 } hash_bucket;
 
 #endif // TYPE_DEFINITION_H

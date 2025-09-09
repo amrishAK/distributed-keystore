@@ -1,6 +1,7 @@
 #include "unity.h"
 #include "bucket/hash_bucket_list.h"
 #include "core/data_node.h"
+#include "utils/memory_manager.h"
 #include <string.h>
 
 void test_insert_and_find_list_node(void) {
@@ -166,6 +167,7 @@ void test_insert_null_key(void) {
 }
 
 int test_hash_bucket_list_suite(void) {
+    initialize_memory_manager((memory_manager_config){ .bucket_size = 10, .pre_allocation_factor = 1.0, .allocate_list_pool = true, .allocate_tree_pool = false });
     printf("Running hash_bucket_list tests...\n");
     RUN_TEST(test_insert_and_find_list_node);
     RUN_TEST(test_delete_list_node_not_found);
@@ -179,5 +181,6 @@ int test_hash_bucket_list_suite(void) {
     RUN_TEST(test_repeated_insert_delete);
     RUN_TEST(test_insert_null_key);
     printf("Completed hash_bucket_list tests.\n");
+    cleanup_memory_manager();
     return 0;
 }   

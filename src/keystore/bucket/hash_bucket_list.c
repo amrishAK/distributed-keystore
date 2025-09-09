@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include "hash_bucket_list.h"
 #include "core/data_node.h"
+#include "utils/memory_manager.h"
 
 
 list_node* create_new_list_node(uint32_t key_hash, data_node *data);
@@ -61,7 +62,7 @@ int delete_list_node(list_node **node_header_ptr, const char *key, uint32_t key_
 
     // Free the memory allocated for the node
     delete_data_node(current_node_ptr->data);
-    free(current_node_ptr);
+    free_memory(current_node_ptr, LIST_POOL);
 
     return 0; // Success
 }
@@ -99,7 +100,7 @@ int delete_all_list_nodes(list_node *node_header_ptr)
     {
         next_node_ptr = current_node_ptr->next;
         delete_data_node(current_node_ptr->data);
-        free(current_node_ptr);
+        free_memory(current_node_ptr, LIST_POOL);
         current_node_ptr = next_node_ptr;
     }
 
@@ -108,8 +109,8 @@ int delete_all_list_nodes(list_node *node_header_ptr)
 
 list_node* create_new_list_node(uint32_t key_hash, data_node *data)
 {
-    list_node *new_node = (list_node *)malloc(sizeof(list_node));
-    
+    list_node *new_node = (list_node *)allocate_memory_from_pool(LIST_POOL);
+
     if (new_node == NULL) {
         return NULL; // Handle memory allocation failure
     }

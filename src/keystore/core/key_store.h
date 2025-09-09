@@ -3,6 +3,11 @@
 
 #include "type_definition.h"
 
+typedef struct {
+    const unsigned char *data;
+    size_t data_size;
+} key_store_value;
+
 
 /**
  * @fn initialise_key_store
@@ -13,8 +18,11 @@
  *
  * @param bucket_size The number of buckets to allocate in the key store.
  * @return 0 on success, or a negative error code on failure.
+ * 
+ * @note The bucket_size must be a power of two. If it is not, the function returns -1 to indicate an error.
+ * 
  */
-int initialise_key_store(int bucket_size);
+int initialise_key_store(unsigned int bucket_size,  double pre_memory_allocation_factor);
 
 /**
  * @fn cleanup_key_store
@@ -31,27 +39,29 @@ int cleanup_key_store(void);
  * @fn set_key
  * @brief Sets a key-value pair in the key store.
  *
- * This function adds a new key-value pair to the key store, or updates the value
- * if the key already exists.
+ * This function inserts or updates the value associated with the specified key.
+ * If the key already exists, its data is updated. If the key does not exist,
+ * a new entry is created.
  *
- * @param key The key to be set.
- * @param data Pointer to the data to be associated with the key.
- * @param data_size Size of the data to be stored.
+ * @param key The key to set (null-terminated string).
+ * @param value The value to associate with the key.
  * @return 0 on success, or a negative error code on failure.
  */
-int set_key(const char *key, const unsigned char *data, size_t data_size);
+int set_key(const char *key, key_store_value value);
 
 /**
  * @fn get_key
- * @brief Retrieves the data node associated with the specified key.
+ * @brief Retrieves the value associated with the specified key from the key store.
  *
- * This function looks up the key in the key store and returns the corresponding
- * data node if found.
+ * This function looks up the given key in the key store and retrieves its associated value.
+ * If the key is found, the value is copied into the provided output structure.
  *
- * @param key The key to look up.
- * @return Pointer to the data_node if found, or NULL if the key does not exist.
+ * @param key The key to look up (null-terminated string).
+ * @param value_out Pointer to a key_store_value structure to receive the value. It is set to NULL if the key is not found. 
+ * @return 0 on success, or a negative error code if the key is not found or an error occurs.
+ * @note The caller is responsible for managing the memory of the data pointer in value_out.
  */
-data_node* get_key(const char *key);
+int get_key(const char *key, key_store_value *value_out);
 
 /**
  * @fn delete_key
