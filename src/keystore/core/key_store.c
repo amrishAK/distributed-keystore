@@ -104,7 +104,7 @@ int get_key(const char *key, key_store_value *value_out)
         return -1; // Key not found
     }
     else {
-        value_out->data = (unsigned char *)malloc(node->data_size);
+        value_out->data = (unsigned char *)allocate_memory(node->data_size);
         if (value_out->data == NULL) {
             return -1; // Memory allocation failure
         }

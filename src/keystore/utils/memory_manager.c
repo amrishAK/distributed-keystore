@@ -89,9 +89,15 @@ void free_memory(void *ptr, memory_pool_type_t pool_type)
 
 void* reallocate_memory(void *ptr, size_t new_size)
 {
-    if (ptr == NULL || new_size == 0)
+    if (ptr == NULL)
     {
         return NULL; // Handle invalid parameters
+    }
+
+    if(new_size == 0)
+    {
+        free(ptr);
+        return NULL; // Free memory if new size is zero
     }
 
     void *new_ptr = realloc(ptr, new_size);

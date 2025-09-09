@@ -48,11 +48,9 @@ void test_get_hash_bucket_out_of_bounds(void) {
 void test_add_and_find_node_in_bucket(void) {
     initialise_hash_buckets(2);
     data_node* dummy_node = make_test_data_node("key1", 123, (unsigned char *)"data", 5);
-    printf("Dummy node created: %p\n", (void*)dummy_node);
     TEST_ASSERT_NOT_NULL_MESSAGE(dummy_node, "Failed to create test data node");
     TEST_ASSERT_EQUAL_MESSAGE(0, add_node_to_bucket(0, 123, dummy_node), "Failed to add node to bucket");
     data_node *found = find_node_in_bucket(0, "key1", 123);
-    printf("Found node: %p\n", (void*)found);
     TEST_ASSERT_NOT_NULL_MESSAGE(found, "Failed to find node in bucket");
     TEST_ASSERT_EQUAL_STRING_MESSAGE("key1", found->key, "Key mismatch");
     cleanup_hash_buckets();

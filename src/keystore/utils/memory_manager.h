@@ -128,8 +128,8 @@ void* allocate_memory(size_t size);
 
 
 /**
- * * @fn reallocate_memory
- * * @brief Reallocates a memory block to a new size.
+ * @fn reallocate_memory
+ * @brief Reallocates a memory block to a new size.
  * @param ptr Pointer to the existing memory block to be reallocated.
  * @param new_size The new size in bytes for the memory block.
  * @return A pointer to the reallocated memory block, or NULL if reallocation fails.
