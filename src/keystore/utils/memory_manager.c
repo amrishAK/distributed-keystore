@@ -91,7 +91,7 @@ void* reallocate_memory(void *ptr, size_t new_size)
 {
     if (ptr == NULL)
     {
-        return NULL; // Handle invalid parameters
+        return malloc(new_size); // Standard realloc behavior
     }
 
     if(new_size == 0)
