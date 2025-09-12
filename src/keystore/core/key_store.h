@@ -17,12 +17,14 @@ typedef struct {
  * as needed to support the given number of buckets.
  *
  * @param bucket_size The number of buckets to allocate in the key store.
+ * @param pre_memory_allocation_factor A factor (0 to 1) indicating the proportion of memory to pre-allocate for efficiency.
+ * @param is_concurrency_enabled Flag to enable or disable concurrency control.
  * @return 0 on success, or a negative error code on failure.
  * 
  * @note The bucket_size must be a power of two. If it is not, the function returns -1 to indicate an error.
  * 
  */
-int initialise_key_store(unsigned int bucket_size,  double pre_memory_allocation_factor);
+int initialise_key_store(unsigned int bucket_size,  double pre_memory_allocation_factor, bool is_concurrency_enabled);
 
 /**
  * @fn cleanup_key_store

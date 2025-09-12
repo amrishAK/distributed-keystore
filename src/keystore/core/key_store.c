@@ -19,13 +19,13 @@ static int _get_bucket_index(uint32_t key_hash);
 static int _get_hash_and_index(const char *key, uint32_t *key_hash_out, unsigned int *index_out);
 
 
-int initialise_key_store(unsigned int bucket_size, double pre_memory_allocation_factor) 
+int initialise_key_store(unsigned int bucket_size, double pre_memory_allocation_factor, bool is_concurrency_enabled) 
 { 
     if(bucket_size == 0 || pre_memory_allocation_factor < 0 || pre_memory_allocation_factor > 1) {
         return -1; // Invalid parameters
     }
 
-    if(initialise_hash_buckets(bucket_size) != 0) {
+    if(initialise_hash_buckets(bucket_size, is_concurrency_enabled) != 0) {
         return -1; // Failed to initialize hash buckets
     }
 
@@ -104,7 +104,7 @@ int get_key(const char *key, key_store_value *value_out)
         return -1; // Key not found
     }
     else {
-        value_out->data = (unsigned char *)allocate_memory(node->data_size);
+        value_out->data = (unsigned char *)malloc(node->data_size);
         if (value_out->data == NULL) {
             return -1; // Memory allocation failure
         }

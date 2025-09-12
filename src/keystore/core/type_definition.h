@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <pthread.h>
 
 typedef enum {
     NONE,
@@ -52,6 +53,7 @@ typedef struct  hash_bucket
 
     int count;
     bool is_initialized;
+    pthread_rwlock_t lock;
 } hash_bucket;
 
 #endif // TYPE_DEFINITION_H

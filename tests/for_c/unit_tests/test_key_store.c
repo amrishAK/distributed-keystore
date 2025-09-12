@@ -14,7 +14,7 @@ static void free_key_store_value(key_store_value *value) {
 }
 
 void test_set_binary_data(void) {
-    initialise_key_store(8, 0.5);
+    initialise_key_store(8, 0.5, false);
     unsigned char bin[] = {0x01, 0x02, 0x03, 0x04};
     key_store_value value = {bin, sizeof(bin)};
     TEST_ASSERT_EQUAL(0, set_key("bin", value));
@@ -22,7 +22,7 @@ void test_set_binary_data(void) {
 }
 
 void test_update_binary_data(void) {
-    initialise_key_store(8, 0.5);
+    initialise_key_store(8, 0.5, false);
     unsigned char bin[] = {0x01, 0x02};
     key_store_value value = {bin, sizeof(bin)};
     set_key("bin", value);
@@ -38,7 +38,7 @@ void test_update_binary_data(void) {
 }
 
 void test_delete_binary_data(void) {
-    initialise_key_store(8, 0.5);
+    initialise_key_store(8, 0.5, false);
     unsigned char bin[] = {0xAA, 0xBB};
     key_store_value value = {bin, sizeof(bin)};
     set_key("bin", value);
@@ -49,7 +49,7 @@ void test_delete_binary_data(void) {
 }
 
 void test_get_binary_data(void) {
-    initialise_key_store(8, 0.5);
+    initialise_key_store(8, 0.5, false);
     unsigned char bin[] = {0x10, 0x20, 0x30};
     key_store_value value = {bin, sizeof(bin)};
     set_key("bin", value);
@@ -62,12 +62,12 @@ void test_get_binary_data(void) {
 }
 
 void test_initialise_key_store(void) {
-    TEST_ASSERT_EQUAL(0, initialise_key_store(8, 0.5));
+    TEST_ASSERT_EQUAL(0, initialise_key_store(8, 0.5, false));
     cleanup_key_store();
 }
 
 void test_update_key(void) {
-    initialise_key_store(8, 0.5);
+    initialise_key_store(8, 0.5, false);
     key_store_value value = {(const unsigned char *)"abc", 3};
     set_key("key", value);
     key_store_value value2 = {(const unsigned char *)"def", 3};
@@ -80,7 +80,7 @@ void test_update_key(void) {
 }
 
 void test_delete_key(void) {
-    initialise_key_store(8, 0.5);
+    initialise_key_store(8, 0.5, false);
     key_store_value value = {(const unsigned char *)"abc", 3};
     set_key("key", value);
     TEST_ASSERT_EQUAL(0, delete_key("key"));
@@ -90,7 +90,7 @@ void test_delete_key(void) {
 }
 
 void test_invalid_key(void) {
-    initialise_key_store(8, 0.5);
+    initialise_key_store(8, 0.5, false);
     key_store_value value = {(const unsigned char *)"abc", 3};
     TEST_ASSERT_EQUAL(-1, set_key(NULL, value));
     TEST_ASSERT_EQUAL(-1, set_key("", value));
@@ -103,7 +103,7 @@ void test_invalid_key(void) {
 }
 
 void test_collision_handling(void) {
-    initialise_key_store(8, 0.5);
+    initialise_key_store(8, 0.5, false);
     key_store_value v1 = {(const unsigned char *)"data1", 6};
     key_store_value v2 = {(const unsigned char *)"data2", 6};
     set_key("keyA", v1);
@@ -117,7 +117,7 @@ void test_collision_handling(void) {
 }
 
 void test_repeated_set_delete(void) {
-    initialise_key_store(8, 0.5);
+    initialise_key_store(8, 0.5, false);
     key_store_value value = {(const unsigned char *)"abc", 3};
     for(int i=0; i<10; ++i) {
         TEST_ASSERT_EQUAL(0, set_key("key", value));
@@ -127,13 +127,13 @@ void test_repeated_set_delete(void) {
 }
 
 void test_delete_nonexistent_key(void) {
-    initialise_key_store(8, 0.5);
+    initialise_key_store(8, 0.5, false);
     TEST_ASSERT_EQUAL(-1, delete_key("nope"));
     cleanup_key_store();
 }
 
 void test_set_key_after_delete(void) {
-    initialise_key_store(8, 0.5);
+    initialise_key_store(8, 0.5, false);
     key_store_value value = {(const unsigned char *)"abc", 3};
     set_key("key", value);
     delete_key("key");
@@ -146,7 +146,7 @@ void test_set_key_after_delete(void) {
 }
 
 void test_long_key_and_data_to_store(void) {
-    initialise_key_store(8, 0.5);
+    initialise_key_store(8, 0.5, false);
     char long_key[256];
     memset(long_key, 'A', sizeof(long_key)-1);
     long_key[255] = '\0';
@@ -163,7 +163,7 @@ void test_long_key_and_data_to_store(void) {
 }
 
 void test_min_max_key(void) {
-    initialise_key_store(8, 0.5);
+    initialise_key_store(8, 0.5, false);
     char min_key[2] = "a";
     char max_key[256];
     memset(max_key, 'Z', sizeof(max_key) - 1);
@@ -181,7 +181,7 @@ void test_min_max_key(void) {
 }
 
 void test_overwrite_with_different_size(void) {
-    initialise_key_store(8, 0.5);
+    initialise_key_store(8, 0.5, false);
     key_store_value v1 = {(const unsigned char *)"abc", 3};
     key_store_value v2 = {(const unsigned char *)"abcdef", 6};
     set_key("key", v1);
@@ -194,7 +194,7 @@ void test_overwrite_with_different_size(void) {
 }
 
 void test_many_keys(void) {
-    initialise_key_store(32, 0.5);
+    initialise_key_store(32, 0.5, false);
     char key[16];
     unsigned char val[8];
     for(int i=0; i<100; ++i) {
@@ -213,7 +213,7 @@ void test_many_keys(void) {
 }
 
 void test_null_and_zero_data(void) {
-    initialise_key_store(8, 0.5);
+    initialise_key_store(8, 0.5, false);
     key_store_value vnull = {NULL, 0};
     TEST_ASSERT_EQUAL(-1, set_key("key", vnull));
     key_store_value vzero = {(const unsigned char *)"", 0};
@@ -222,7 +222,7 @@ void test_null_and_zero_data(void) {
 }
 
 void test_set_get_multiple_keys(void) {
-    initialise_key_store(8, 0.5);
+    initialise_key_store(8, 0.5, false);
     key_store_value v1 = {(const unsigned char *)"one", 3};
     key_store_value v2 = {(const unsigned char *)"two", 3};
     key_store_value v3 = {(const unsigned char *)"three", 5};

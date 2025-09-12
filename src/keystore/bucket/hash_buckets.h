@@ -10,6 +10,7 @@ typedef struct hash_bucket_memory_pool
     unsigned int block_size; // Size of each block
     unsigned int total_blocks; // Total number of blocks in the pool
     bool is_initialized; // Flag to indicate if the pool is initialized
+    bool is_concurrency_enabled; // Flag to indicate if concurrency control is enabled
 } hash_bucket_memory_pool;
 
 
@@ -17,9 +18,10 @@ typedef struct hash_bucket_memory_pool
  * @fn initialise_hash_buckets
  * @brief Initializes the hash bucket system with the specified bucket size.
  * @param bucket_size The number of buckets to allocate.
+ * @param is_concurrency_enabled Flag to enable or disable concurrency control.
  * @return 0 on success, non-zero on failure.
  */
-int initialise_hash_buckets(unsigned int bucket_size);
+int initialise_hash_buckets(unsigned int bucket_size, bool is_concurrency_enabled);
 
 /**
  * @fn cleanup_hash_buckets
