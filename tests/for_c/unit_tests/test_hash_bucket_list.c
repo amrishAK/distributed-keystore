@@ -10,7 +10,8 @@ void test_insert_and_find_list_node(void) {
     unsigned char data[] = "value";
     size_t data_size = sizeof(data);
 
-    data_node *dnode = create_data_node(key, key_hash, data, data_size);
+        key_store_value value = { .data = data, .data_size = data_size };
+        data_node *dnode = create_data_node(key, key_hash, &value, false);
     TEST_ASSERT_NOT_NULL(dnode);
 
     list_node *head = NULL;
@@ -45,7 +46,8 @@ void test_insert_multiple_nodes_and_find(void) {
 
     data_node *nodes[3];
     for (int i = 0; i < 3; ++i) {
-        nodes[i] = create_data_node(keys[i], hashes[i], data, data_size);
+           key_store_value value = { .data = data, .data_size = data_size };
+           nodes[i] = create_data_node(keys[i], hashes[i], &value, false);
         TEST_ASSERT_NOT_NULL_MESSAGE(nodes[i], "Failed to create data node");
         int result = insert_list_node(&head, hashes[i], nodes[i]);
         TEST_ASSERT_EQUAL(0, result);
@@ -76,8 +78,9 @@ void test_delete_head_and_middle_node(void) {
     unsigned char data[] = "value";
     size_t data_size = sizeof(data);
 
-    data_node *node1 = create_data_node(key1, hash1, data, data_size);
-    data_node *node2 = create_data_node(key2, hash2, data, data_size);
+        key_store_value value = { .data = data, .data_size = data_size };
+        data_node *node1 = create_data_node(key1, hash1, &value, false);
+        data_node *node2 = create_data_node(key2, hash2, &value, false);
 
     int result = insert_list_node(&head, hash2, node2); // middle
     result = insert_list_node(&head, hash1, node1); // head
@@ -103,7 +106,8 @@ void test_insert_empty_key(void) {
     unsigned char data[] = "empty";
     list_node *head = NULL;
     size_t data_size = sizeof(data);
-    data_node *dnode = create_data_node(key, hash, data, data_size);
+    key_store_value value = { .data = data, .data_size = data_size };
+    data_node *dnode = create_data_node(key, hash, &value, false);
     int result = insert_list_node(&head, hash, dnode);
     TEST_ASSERT_EQUAL(-1, result);
     list_node *found = find_list_node(head, key, hash);
@@ -120,7 +124,8 @@ void test_insert_large_key(void) {
     size_t data_size = sizeof(data);
     list_node *head = NULL;
 
-    data_node *dnode = create_data_node(key, hash, data, data_size);
+    key_store_value value = { .data = data, .data_size = data_size };
+    data_node *dnode = create_data_node(key, hash, &value, false);
     int result = insert_list_node(&head, hash, dnode);
     TEST_ASSERT_EQUAL(0, result);
     list_node *found = find_list_node(head, key, hash);
@@ -134,7 +139,8 @@ void test_delete_single_node_list(void) {
     unsigned char data[] = "one";
     size_t data_size = sizeof(data);
     list_node *head = NULL;
-    data_node *dnode = create_data_node(key, hash, data, data_size);
+    key_store_value value = { .data = data, .data_size = data_size };
+    data_node *dnode = create_data_node(key, hash, &value, false);
     int result = insert_list_node(&head, hash, dnode);
     TEST_ASSERT_EQUAL(0, result);
     result = delete_list_node(&head, key, hash);
@@ -148,7 +154,8 @@ void test_repeated_insert_delete(void) {
     size_t data_size = sizeof(data);
     list_node *head = NULL;
     for (int i = 0; i < 10; ++i) {
-        data_node *dnode = create_data_node(key, hash, data, data_size);
+           key_store_value value = { .data = data, .data_size = data_size };
+           data_node *dnode = create_data_node(key, hash, &value, false);
         int result = insert_list_node(&head, hash, dnode);
         TEST_ASSERT_EQUAL(0, result);
         result = delete_list_node(&head, key, hash);
@@ -160,7 +167,8 @@ void test_insert_null_key(void) {
     list_node *head = NULL;
     unsigned char *data = NULL;
     size_t data_size = 0;
-    data_node *dnode = create_data_node(NULL, 123, data, data_size);
+        key_store_value value = { .data = data, .data_size = data_size };
+        data_node *dnode = create_data_node(NULL, 123, &value, false);
     int result = insert_list_node(&head, 123, dnode);
     // Should handle gracefully (depends on your implementation)
     TEST_ASSERT_EQUAL(-1, result);

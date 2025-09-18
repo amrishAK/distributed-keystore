@@ -1,7 +1,15 @@
+# Concurrency test build/run
+CONCURRENCY_TEST_SRC = integration_test/concurrency_test.c
+CONCURRENCY_TEST_BIN = $(BUILD_DIR)/concurrency_test
+
+
 # Compiler and flags
 CC = gcc
 CFLAGS = -Wall -Wextra -g
 COVERAGE_FLAGS = --coverage -fprofile-arcs -ftest-coverage
+
+# Common build macro
+BUILD_CMD = $(CC) $(CFLAGS) $(INCLUDES) $(EXTRA_FLAGS)
 
 # Directories
 UNITY_DIR     = ./include
@@ -47,24 +55,33 @@ $(BUILD_DIR):
 coverage-dir:
 	mkdir -p $(COVERAGE_DIR)
 
+
 # Compile Unity framework
 $(UNITY_OBJ): $(UNITY_SRC) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(BUILD_CMD) -c $< -o $@
+
 
 # Compile test files
 $(TEST_OBJ): $(TEST_SRC) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(BUILD_CMD) -c $< -o $@
 
-# Compile keystore sources
+
+# Compile keystore sources (unit test build)
 $(BUILD_DIR)/%.o: $(KEYSTORE_DIR)/%.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(COVERAGE_FLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) $(INCLUDES) $(UNIT_FLAGS) -c $< -o $@
 
-# Link executable
+
+# Link unit test executable
 $(TEST_BIN): $(UNITY_OBJ) $(TEST_OBJ) $(KEYSTORE_OBJS)
-	$(CC) $(CFLAGS) $(COVERAGE_FLAGS) $^ -o $@
+	$(CC) $(CFLAGS) $(INCLUDES) $(UNIT_FLAGS) $^ -o $@
+
+
+# Build unit test (with coverage)
+unit_build:
+	$(MAKE) UNIT_FLAGS="$(COVERAGE_FLAGS)" $(TEST_BIN)
 
 # Run unit tests
-test: $(TEST_BIN)
+test: unit_build
 	@echo "Running unit tests..."
 	./$(TEST_BIN)
 
@@ -91,6 +108,18 @@ coverage-simple: test
 	  gcov -o $(BUILD_DIR)/$(d) $(wildcard $(KEYSTORE_DIR)/$(d)/*.c);)
 	@echo "Simple coverage files in $(BUILD_DIR)/*/*.gcov"
 
+
+# Build concurrency test (no coverage)
+concurrency_build:
+	$(MAKE) EXTRA_FLAGS="" $(CONCURRENCY_TEST_BIN)
+
+$(CONCURRENCY_TEST_BIN): $(CONCURRENCY_TEST_SRC) $(KEYSTORE_OBJS) | $(BUILD_DIR)
+	$(BUILD_CMD) -o $(CONCURRENCY_TEST_BIN) $(CONCURRENCY_TEST_SRC) $(KEYSTORE_OBJS) -lpthread 
+
+run-concurrency-test: concurrency_build
+	@echo "Running concurrency test..."
+	$(CONCURRENCY_TEST_BIN)
+
 # Debug detected dirs and files
 debug:
 	@echo "Subdirectories: $(KEYSTORE_SUBDIRS)"
@@ -100,6 +129,9 @@ debug:
 # Clean build and coverage artifacts
 clean:
 	rm -rf $(BUILD_DIR) $(COVERAGE_DIR) *.gcov *.gcda *.gcno coverage.info
+
+
+
 
 # Phony targets
 .PHONY: all test clean coverage coverage-simple coverage-dir debug help
@@ -114,3 +146,5 @@ help:
 	@echo "  debug           - Show detected dirs and files"
 	@echo "  clean           - Remove build/coverage artifacts"
 	@echo "  help            - Show this help message"
+	@echo "  concurrency_test        - Build concurrency test binary"
+	@echo "  run-concurrency-test    - Build and run concurrency test"

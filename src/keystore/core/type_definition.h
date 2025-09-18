@@ -6,6 +6,12 @@
 #include <stdbool.h>
 #include <pthread.h>
 
+typedef struct {
+    unsigned char *data;
+    size_t data_size;
+} key_store_value;
+
+
 typedef enum {
     NONE,
     BUCKET_LIST,
@@ -22,6 +28,8 @@ typedef struct  data_node
     uint32_t key_hash; // Hash of the key (immutable)
     unsigned char *data;
     size_t data_size;
+    bool is_concurrency_enabled;
+    pthread_mutex_t lock; // Mutex for concurrency control
     char key[];
 } data_node;
 

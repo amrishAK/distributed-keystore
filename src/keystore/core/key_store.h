@@ -3,12 +3,6 @@
 
 #include "type_definition.h"
 
-typedef struct {
-    const unsigned char *data;
-    size_t data_size;
-} key_store_value;
-
-
 /**
  * @fn initialise_key_store
  * @brief Initializes the key store with the specified bucket size.
@@ -39,17 +33,18 @@ int cleanup_key_store(void);
 
 /**
  * @fn set_key
- * @brief Sets a key-value pair in the key store.
+ * @brief Sets or updates the value associated with the specified key in the key store.
  *
- * This function inserts or updates the value associated with the specified key.
- * If the key already exists, its data is updated. If the key does not exist,
- * a new entry is created.
+ * This function adds a new key-value pair to the key store or updates the value
+ * if the key already exists. The value is provided as a key_store_value structure.
  *
- * @param key The key to set (null-terminated string).
- * @param value The value to associate with the key.
+ * @param key The key to set or update (null-terminated string).
+ * @param value Pointer to a key_store_value structure containing the data and its size.
  * @return 0 on success, or a negative error code on failure.
+ * 
+ * @note The caller is responsible for managing the memory of the data pointer in value.
  */
-int set_key(const char *key, key_store_value value);
+int set_key(const char *key, key_store_value* value);
 
 /**
  * @fn get_key
@@ -63,7 +58,7 @@ int set_key(const char *key, key_store_value value);
  * @return 0 on success, or a negative error code if the key is not found or an error occurs.
  * @note The caller is responsible for managing the memory of the data pointer in value_out.
  */
-int get_key(const char *key, key_store_value *value_out);
+int get_key(const char *key, key_store_value* value_out);
 
 /**
  * @fn delete_key

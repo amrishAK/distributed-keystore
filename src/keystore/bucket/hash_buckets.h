@@ -38,7 +38,7 @@ int cleanup_hash_buckets(void);
  * @param create_if_missing If true, creates the bucket if it does not exist.
  * @return Pointer to the hash bucket at the specified index, or NULL if not found and not created.
  */
-hash_bucket* get_hash_bucket(unsigned int index, bool create_if_missing);
+hash_bucket* get_hash_bucket(unsigned int index);
 
 /**
  * @fn add_node_to_bucket
@@ -48,7 +48,7 @@ hash_bucket* get_hash_bucket(unsigned int index, bool create_if_missing);
  * @param node_ptr Pointer to the data node to add.
  * @return 0 on success, non-zero on failure.
  */
-int add_node_to_bucket(unsigned int index, uint32_t key_hash, data_node *node_ptr);
+int add_node_to_bucket(unsigned int index, const char *key, uint32_t key_hash, key_store_value* new_value);
 
 /**
  * @fn find_node_in_bucket
@@ -58,7 +58,19 @@ int add_node_to_bucket(unsigned int index, uint32_t key_hash, data_node *node_pt
  * @param key_hash Hash value of the key.
  * @return Pointer to the found data node, or NULL if not found.
  */
-data_node* find_node_in_bucket(unsigned int index, const char *key, uint32_t key_hash);
+int find_node_in_bucket(unsigned int index, const char *key, uint32_t key_hash, key_store_value* value_out);
+
+
+/**
+ * @fn edit_node_in_bucket
+ * @brief Edits the data of a node in the hash bucket by key and key hash.
+ * @param index Index of the hash bucket.
+ * @param key Key string of the node to edit.
+ * @param key_hash Hash value of the key.
+ * @param new_value New value to set in the node.
+ * @return 0 on success, -1 if the node was not found or on error.
+ */
+int edit_node_in_bucket(unsigned int index, const char *key, uint32_t key_hash, key_store_value* new_value);
 
 /**
  * @fn delete_node_from_bucket
