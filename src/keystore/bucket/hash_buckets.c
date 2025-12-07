@@ -79,6 +79,13 @@ int initialise_hash_buckets(unsigned int bucket_size, bool is_concurrency_enable
     g_hash_bucket_pool.is_initialized = true;
     g_hash_bucket_pool.is_concurrency_enabled = is_concurrency_enabled;
 
+    // Eager initialization of hash buckets if concurrency is enabled or else lazy initialization will be done
+    if (is_concurrency_enabled) {
+        for (unsigned int i = 0; i < bucket_size; ++i) {
+            _initialise_hash_bucket(&g_hash_bucket_pool.hash_buckets_ptr[i]);
+        }
+    }
+
     return 0;
 }
 
@@ -191,7 +198,7 @@ void _initialise_hash_bucket(hash_bucket *hash_bucket_ptr) {
     hash_bucket_ptr->container.list = NULL;
     hash_bucket_ptr->count = 0;
     hash_bucket_ptr->is_initialized = true;
-
+    
     if (g_hash_bucket_pool.is_concurrency_enabled) pthread_rwlock_init(&hash_bucket_ptr->lock, NULL);
 }
 
@@ -362,7 +369,7 @@ int _lock_wrapper(bucket_operation_type_t operation_type, bucket_operation_args 
         lock_result = pthread_rwlock_wrlock(&args.hash_bucket_ptr->lock);
     }
 
-    if (lock_result != 0) return -1; // Handle error: failed to acquire lock
+    if (lock_result != 0) return -40; // Handle error: failed to acquire lock
 
     int operation_result = 0;
     switch (operation_type) {
@@ -380,7 +387,7 @@ int _lock_wrapper(bucket_operation_type_t operation_type, bucket_operation_args 
             break;
         default: 
             // Error handling: unknown operation
-            operation_result = -1;
+            operation_result = -41;
             break;
     }
 

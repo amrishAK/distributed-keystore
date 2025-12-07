@@ -5,11 +5,10 @@
 #include <stdlib.h>
 #include <stdatomic.h>
 
-#define NUM_THREADS 20
-#define NUM_KEYS_PER_THREAD 20
+#define NUM_THREADS 1000
+#define NUM_KEYS_PER_THREAD 1000
 
 static atomic_int race_errors = 0;
-static atomic_int undeleted_keys = 0;
 
 // Thread context
 typedef struct {
@@ -53,7 +52,7 @@ void *thread_set_get(void *arg) {
 
 int main() {
     printf("Starting concurrency stress test...\n");
-    if(initialise_key_store(1024, 0.5, true) != 0) {
+    if(initialise_key_store(1024, 1, true) != 0) {
         printf("Failed to initialize key store with concurrency enabled.\n");
         return -1;
     }

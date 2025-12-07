@@ -66,6 +66,7 @@
     "memory_manager.h": "c",
     "math.h": "c",
     "stdio.h": "c",
-    "stdatomic.h": "c"
+    "stdatomic.h": "c",
+    "pthread.h": "c"
   }
 }

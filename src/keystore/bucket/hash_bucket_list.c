@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include "hash_bucket_list.h"
 #include "core/data_node.h"
@@ -15,6 +16,8 @@ int insert_list_node(list_node **node_header_ptr, uint32_t key_hash, data_node *
     }
 
     list_node *new_node = create_new_list_node(key_hash, data);
+
+    if(new_node == NULL) return -1; // Memory allocation failure
 
     if(node_header_ptr != NULL)
     {
@@ -112,6 +115,7 @@ list_node* create_new_list_node(uint32_t key_hash, data_node *data)
     list_node *new_node = (list_node *)allocate_memory_from_pool(LIST_POOL);
 
     if (new_node == NULL) {
+        printf("Memory allocation failed for new list node. key_hash: %u\n", key_hash);
         return NULL; // Handle memory allocation failure
     }
 

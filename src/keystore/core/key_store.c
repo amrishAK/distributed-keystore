@@ -30,7 +30,7 @@ int initialise_key_store(unsigned int bucket_size, double pre_memory_allocation_
 
     if(initialise_hash_buckets(bucket_size, is_concurrency_enabled) != 0)  return -1; // Error handling: Failed to initialize hash buckets
 
-    memory_manager_config config = {bucket_size, pre_memory_allocation_factor, true, false};
+    memory_manager_config config = {bucket_size, pre_memory_allocation_factor, true, false, is_concurrency_enabled};
 
     if(initialize_memory_manager(config) != 0) {
         cleanup_hash_buckets();
