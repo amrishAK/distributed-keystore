@@ -122,6 +122,11 @@ int _create_memory_pool(memory_pool *pool, size_t block_size)
     pool->available_blocks = pool->total_blocks;
     pool->reusable_blocks = 0;
     pool->is_initialized = false;
+    
+    if(g_config.is_concurrency_enabled) 
+    {
+        if(pthread_mutex_init(&pool->pool_lock, NULL) != 0) return -1; // Mutex initialization failed
+    }
 
     // Allocate memory for the pool
     pool->next_block_ptr = malloc(block_size * pool->total_blocks);
@@ -140,7 +145,6 @@ int _create_memory_pool(memory_pool *pool, size_t block_size)
     pool->pool_end_ptr = (char *)pool->next_block_ptr + (pool->block_size * pool->total_blocks);
     pool->is_initialized = true;
 
-    if(g_config.is_concurrency_enabled) pthread_mutex_init(&pool->pool_lock, NULL);
 
     return 0; // Success
 }
@@ -261,7 +265,7 @@ int _cleanup_memory_pool(memory_pool *pool)
 {
     if(pool == NULL) return -1; // Invalid parameter
 
-    if(!pool->is_initialized)return 0; // Nothing to clean up
+    if(!pool->is_initialized) return 0; // Nothing to clean up
 
     if(pool->pool_start_ptr != NULL)
     {

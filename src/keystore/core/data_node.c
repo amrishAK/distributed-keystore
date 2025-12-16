@@ -5,9 +5,10 @@
 #include "utils/memory_manager.h"
 
 #pragma region Private Function Declarations
-int add_data_to_node(data_node *node_ptr, key_store_value* value);
-int add_key_to_node(data_node *node_ptr, const char *key, size_t key_len, uint32_t key_hash);
-int update_data_node(data_node *node_ptr, key_store_value* new_value);
+data_node* _allocate_and_init_data_node(size_t key_len, bool is_concurrency_enabled);
+int _add_data_to_node(data_node *node_ptr, key_store_value* value);
+int _add_key_to_node(data_node *node_ptr, const char *key, size_t key_len, uint32_t key_hash);
+int _update_data_node(data_node *node_ptr, key_store_value* new_value);
 
 #pragma endregion
 
@@ -18,35 +19,31 @@ data_node* create_data_node(const char *key, uint32_t key_hash, key_store_value*
     // Argument validation
     if (key == NULL || key[0] == '\0' || value == NULL || value->data == NULL || value->data_size == 0) return NULL;
 
+    // Allocation and initialisation
     size_t key_len = strlen(key) + 1;
-    data_node *node = (data_node *)allocate_memory(sizeof(data_node) + key_len);
+    data_node *node = _allocate_and_init_data_node(key_len, is_concurrency_enabled);
+    if (node == NULL) return NULL;
 
-    if (node == NULL) return NULL; // Handle memory allocation failure
-
-    node->data = NULL;
-    node->data_size = 0;
-    node->is_concurrency_enabled = is_concurrency_enabled;
-
-    if(add_key_to_node(node, key, key_len, key_hash) != 0) {
+    // Add key to node
+    if(_add_key_to_node(node, key, key_len, key_hash) != 0) {
        delete_data_node(node);
        return NULL;
     }
 
-    if (add_data_to_node(node, value) != 0) {
+    // Add data to node
+    if (_add_data_to_node(node, value) != 0) {
        delete_data_node(node);
        return NULL;
     }
-
-    if(is_concurrency_enabled) pthread_mutex_init(&node->lock, NULL);
-
+    
     return node;
 }
 
 
-int edit_data_node(data_node *node_ptr, key_store_value* new_value) {
+int update_data_node(data_node *node_ptr, key_store_value* new_value) {
 
     if (node_ptr == NULL || new_value == NULL || new_value->data == NULL) return -1; // Handle null pointer
-    return update_data_node(node_ptr, new_value);
+    return _update_data_node(node_ptr, new_value);
 }
 
 int delete_data_node(data_node *node_ptr) {
@@ -69,7 +66,7 @@ int get_data_from_node(data_node *node_ptr, key_store_value *value_out) {
         return 0;
     }
 
-    value_out->data = (unsigned char *)malloc(node_ptr->data_size);
+    value_out->data = (unsigned char *)allocate_memory(node_ptr->data_size);
     if (value_out->data == NULL) return -1; // Handle memory allocation failure
 
     memcpy(value_out->data, node_ptr->data, node_ptr->data_size);
@@ -82,15 +79,46 @@ int get_data_from_node(data_node *node_ptr, key_store_value *value_out) {
 
 #pragma region Private Function Definitions
 
+
 /**
- * @fn add_data
+ * @fn _allocate_and_init_data_node
+ * @brief Allocates memory for a data node and initializes its fields.
+ *
+ * This function allocates memory for a data_node structure including space for the key.
+ * It also initializes the concurrency control mutex if enabled.
+ *
+ * @param key_len Length of the key including null terminator.
+ * @param is_concurrency_enabled Flag indicating if concurrency control is enabled.
+ * @return data_node* Pointer to the allocated and initialized data_node, or NULL on failure.
+ */
+data_node* _allocate_and_init_data_node(size_t key_len, bool is_concurrency_enabled) {
+    data_node *node = (data_node *)allocate_memory(sizeof(data_node) + key_len);
+
+    if (node == NULL) return NULL; // Handle memory allocation failure
+
+    node->data = NULL;
+    node->data_size = 0;
+    node->is_concurrency_enabled = is_concurrency_enabled;
+
+    if(is_concurrency_enabled)
+    {
+        if(pthread_mutex_init(&node->lock, NULL) != 0) {
+            delete_data_node(node);
+            return NULL;
+        }
+    }
+    return node;
+}
+
+/**
+ * @fn _add_data_to_node
  * @brief Adds data to the specified data node.
  * Copies the provided data into the node's data buffer and sets the data size.
  * @param node_ptr Pointer to the data_node structure to which the data will be added.
  * @param value The data and its size to be copied.
  * @return int 0 on success, -1 on memory allocation failure.
  */
-int add_data_to_node(data_node *node_ptr, key_store_value* value) 
+int _add_data_to_node(data_node *node_ptr, key_store_value* value) 
 {   
     if(value->data_size == 0)
     {
@@ -113,7 +141,7 @@ int add_data_to_node(data_node *node_ptr, key_store_value* value)
 
 
 /**
- * @fn add_key
+ * @fn _add_key_to_node
  * @brief Adds a key to the specified data node.
  * Copies the provided key into the node's key buffer and sets the key hash.
  * @param node_ptr Pointer to the data_node structure to which the key will be added.
@@ -122,7 +150,7 @@ int add_data_to_node(data_node *node_ptr, key_store_value* value)
  * @param key_hash Hash value of the key to be stored in the node.
  * @return 0 on success.
  */
-int add_key_to_node(data_node *node_ptr, const char *key, size_t key_len, uint32_t key_hash) 
+int _add_key_to_node(data_node *node_ptr, const char *key, size_t key_len, uint32_t key_hash) 
 {
     if (node_ptr == NULL || key == NULL || key[0] == '\0' || key_len == 0) return -1; // Handle null pointer or invalid key
 
@@ -135,7 +163,7 @@ int add_key_to_node(data_node *node_ptr, const char *key, size_t key_len, uint32
 }
 
 /**
- * @fn update_node
+ * @fn update_node_data
  * @brief Updates the data in the specified data node.
  * Reallocates memory if the new data size differs from the current size,
  * and copies the new data into the node's data buffer.
@@ -145,7 +173,7 @@ int add_key_to_node(data_node *node_ptr, const char *key, size_t key_len, uint32
  * @note If new_value.data_size is 0, the node's data will be set to NULL and data_size to 0.
  * @note If the new data size is the same as the current size, no reallocation is performed.
 */
-int update_data_node(data_node *node_ptr, key_store_value* new_value) {
+int _update_data_node(data_node *node_ptr, key_store_value* new_value) {
 
     if(new_value == NULL || new_value->data == NULL) return -1; // Handle null pointer
 

@@ -113,7 +113,7 @@ void test_add_node_after_cleanup(void) {
 int test_hash_buckets_suite(void) {
     
     printf("Running hash_buckets tests...\n");
-    initialize_memory_manager((memory_manager_config){ .bucket_size = 10, .pre_allocation_factor = 1.0, .allocate_list_pool = true, .allocate_tree_pool = false });
+    initialize_memory_manager((memory_manager_config){ .bucket_size = 10, .pre_allocation_factor = 1.0, .allocate_list_pool = true, .allocate_tree_pool = false, .is_concurrency_enabled = false });
     RUN_TEST(test_initialise_and_cleanup_hash_buckets);
     RUN_TEST(test_get_hash_bucket_and_initialization);
     RUN_TEST(test_get_hash_bucket_out_of_bounds);

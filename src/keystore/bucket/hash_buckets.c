@@ -3,7 +3,7 @@
  * @brief Implementation of hash bucket management for the key-value store.
  * This file provides functions to initialize, manage, and clean up hash buckets.
  * 
- * @note The hash bucket expected bucket size to be a power of two.
+ * @note The hash bucket expects bucket size to be a power of two.
  * @note Concurrency control is optional and can be enabled or disabled during initialization.
  * @note This implementation currently supports only linked list based buckets.
  * @note This module encapsulates all operations related to hash buckets, including adding, finding, and deleting nodes.
@@ -44,7 +44,7 @@ typedef enum {
 
 // Hash bucket utilities
 static bool _is_power_of_two(unsigned int n);
-static void _initialise_hash_bucket(hash_bucket *hash_bucket_ptr);
+static int _initialise_hash_bucket(hash_bucket *hash_bucket_ptr);
 static data_node* _find_data_node(hash_bucket *hash_bucket_ptr, const char *key, uint32_t key_hash);
 
 // Hash bucket operations
@@ -82,7 +82,10 @@ int initialise_hash_buckets(unsigned int bucket_size, bool is_concurrency_enable
     // Eager initialization of hash buckets if concurrency is enabled or else lazy initialization will be done
     if (is_concurrency_enabled) {
         for (unsigned int i = 0; i < bucket_size; ++i) {
-            _initialise_hash_bucket(&g_hash_bucket_pool.hash_buckets_ptr[i]);
+            if (_initialise_hash_bucket(&g_hash_bucket_pool.hash_buckets_ptr[i]) != 0) {
+                cleanup_hash_buckets();
+                return -1; // Error handling: failed to initialize hash bucket
+            }
         }
     }
 
@@ -119,7 +122,13 @@ hash_bucket*  get_hash_bucket(unsigned int index)
 
     hash_bucket* target_bucket_ptr =  &g_hash_bucket_pool.hash_buckets_ptr[index];
 
-    if(!target_bucket_ptr->is_initialized) _initialise_hash_bucket(target_bucket_ptr);
+    if(!target_bucket_ptr->is_initialized)
+    {
+        if (_initialise_hash_bucket(target_bucket_ptr) != 0) {
+            _delete_hash_bucket(index); // or pass the pointer
+            return NULL;
+        }
+    }
 
     return target_bucket_ptr;
 }
@@ -192,14 +201,23 @@ bool _is_power_of_two(unsigned int n) {
  * as initialized, and initializes the read-write lock for concurrency control.
  *
  * @param hash_bucket_ptr Pointer to the hash_bucket structure to be initialized.
+ * @return int Returns 0 on success, or -1 on failure.
  */
-void _initialise_hash_bucket(hash_bucket *hash_bucket_ptr) {
+int _initialise_hash_bucket(hash_bucket *hash_bucket_ptr) {
+
+    if (g_hash_bucket_pool.is_concurrency_enabled)
+    {
+        if (pthread_rwlock_init(&hash_bucket_ptr->lock, NULL) != 0) {
+            return -1; // Error handling: lock initialization failed
+        }
+    }
+
     hash_bucket_ptr->type = BUCKET_LIST;
     hash_bucket_ptr->container.list = NULL;
     hash_bucket_ptr->count = 0;
     hash_bucket_ptr->is_initialized = true;
     
-    if (g_hash_bucket_pool.is_concurrency_enabled) pthread_rwlock_init(&hash_bucket_ptr->lock, NULL);
+    return 0;
 }
 
 /**
@@ -247,13 +265,25 @@ int _add_node(bucket_operation_args args)
 {
     data_node *new_node = create_data_node(args.key, args.key_hash, args.value, g_hash_bucket_pool.is_concurrency_enabled);
     if (new_node == NULL) return -1; // Error handling: memory allocation failure
+    
+    int result = 0;
     switch (args.hash_bucket_ptr->type)
     {
         case BUCKET_LIST:
-            return insert_list_node(&args.hash_bucket_ptr->container.list, args.key_hash, new_node);
+            result = insert_list_node(&args.hash_bucket_ptr->container.list, args.key_hash, new_node);
+            break;
         default:
-            return -1; // Error handling: unsupported bucket type
+            result = -1; // Error handling: unsupported bucket type
+            break;
     }
+
+    if(result == 0) {
+        args.hash_bucket_ptr->count += 1;
+    } else {
+        delete_data_node(new_node); // Clean up allocated node on failure
+    }
+
+    return result;
 }
 
 /**
@@ -268,13 +298,22 @@ int _add_node(bucket_operation_args args)
  */
 int _delete_node(bucket_operation_args args)
 {
+    int result = 0;
     switch (args.hash_bucket_ptr->type)
     {
         case BUCKET_LIST:
-            return delete_list_node(&args.hash_bucket_ptr->container.list, args.key, args.key_hash);
+            result = delete_list_node(&args.hash_bucket_ptr->container.list, args.key, args.key_hash);
+            break;
         default:
-            return -1; // Error handling: unsupported bucket type
+            result = -1; // Error handling: unsupported bucket type
+            break;
     }
+
+    if(result == 0) {
+        args.hash_bucket_ptr->count -= 1;
+    }
+
+    return result;
 }
 
 /**
@@ -369,7 +408,7 @@ int _lock_wrapper(bucket_operation_type_t operation_type, bucket_operation_args 
         lock_result = pthread_rwlock_wrlock(&args.hash_bucket_ptr->lock);
     }
 
-    if (lock_result != 0) return -40; // Handle error: failed to acquire lock
+    if (lock_result != 0) return -1; // Handle error: failed to acquire lock
 
     int operation_result = 0;
     switch (operation_type) {

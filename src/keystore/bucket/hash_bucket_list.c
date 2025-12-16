@@ -115,7 +115,6 @@ list_node* create_new_list_node(uint32_t key_hash, data_node *data)
     list_node *new_node = (list_node *)allocate_memory_from_pool(LIST_POOL);
 
     if (new_node == NULL) {
-        printf("Memory allocation failed for new list node. key_hash: %u\n", key_hash);
         return NULL; // Handle memory allocation failure
     }
 
