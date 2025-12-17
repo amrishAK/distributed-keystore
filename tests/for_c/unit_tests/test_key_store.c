@@ -44,7 +44,7 @@ void test_delete_binary_data(void) {
     set_key("bin", &value);
     TEST_ASSERT_EQUAL(0, delete_key("bin"));
     key_store_value out = {0};
-    TEST_ASSERT_EQUAL(-1, get_key("bin", &out));
+    TEST_ASSERT_EQUAL(-41, get_key("bin", &out));
     cleanup_key_store();
 }
 
@@ -85,20 +85,20 @@ void test_delete_key(void) {
     set_key("key", &value);
     TEST_ASSERT_EQUAL(0, delete_key("key"));
     key_store_value out = {0};
-    TEST_ASSERT_EQUAL(-1, get_key("key", &out));
+    TEST_ASSERT_EQUAL(-41, get_key("key", &out));
     cleanup_key_store();
 }
 
 void test_invalid_key(void) {
     initialise_key_store(8, 0.5, false);
     key_store_value value = {(unsigned char *)"abc", 3};
-    TEST_ASSERT_EQUAL(-1, set_key(NULL, &value));
-    TEST_ASSERT_EQUAL(-1, set_key("", &value));
+    TEST_ASSERT_EQUAL(-20, set_key(NULL, &value));
+    TEST_ASSERT_EQUAL(-20, set_key("", &value));
     key_store_value out = {0};
-    TEST_ASSERT_EQUAL(-1, get_key(NULL, &out));
-    TEST_ASSERT_EQUAL(-1, get_key("", &out));
-    TEST_ASSERT_EQUAL(-1, delete_key(NULL));
-    TEST_ASSERT_EQUAL(-1, delete_key("") );
+    TEST_ASSERT_EQUAL(-20, get_key(NULL, &out));
+    TEST_ASSERT_EQUAL(-20, get_key("", &out));
+    TEST_ASSERT_EQUAL(-20, delete_key(NULL));
+    TEST_ASSERT_EQUAL(-20, delete_key("") );
     cleanup_key_store();
 }
 
@@ -127,8 +127,10 @@ void test_repeated_set_delete(void) {
 }
 
 void test_delete_nonexistent_key(void) {
-    initialise_key_store(8, 0.5, false);
-    TEST_ASSERT_EQUAL(-1, delete_key("nope"));
+    initialise_key_store(1, 1, false);
+    key_store_value value = {(unsigned char *)"abc", 3};
+    set_key("key", &value);
+    TEST_ASSERT_EQUAL(-41, delete_key("nope"));
     cleanup_key_store();
 }
 
@@ -215,9 +217,9 @@ void test_many_keys(void) {
 void test_null_and_zero_data(void) {
     initialise_key_store(8, 0.5, false);
     key_store_value vnull = {NULL, 0};
-    TEST_ASSERT_EQUAL(-1, set_key("key", &vnull));
+    TEST_ASSERT_EQUAL(-20, set_key("key", &vnull));
     key_store_value vzero = {(unsigned char *)"", 0};
-    TEST_ASSERT_EQUAL(-1, set_key("key", &vzero));
+    TEST_ASSERT_EQUAL(-20, set_key("key", &vzero));
     cleanup_key_store();
 }
 

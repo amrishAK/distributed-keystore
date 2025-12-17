@@ -42,13 +42,13 @@ data_node* create_data_node(const char *key, uint32_t key_hash, key_store_value*
 
 int update_data_node(data_node *node_ptr, key_store_value* new_value) {
 
-    if (node_ptr == NULL || new_value == NULL || new_value->data == NULL) return -1; // Handle null pointer
+    if (node_ptr == NULL || new_value == NULL || new_value->data == NULL) return -20; // Handle null pointer
     return _update_data_node(node_ptr, new_value);
 }
 
 int delete_data_node(data_node *node_ptr) {
 
-    if (node_ptr == NULL) return 0; // Handle null pointer, nothing to delete
+    if (node_ptr == NULL) return -20; // Handle null pointer, nothing to delete
 
     free_memory(node_ptr->data, NO_POOL);
     if(node_ptr->is_concurrency_enabled) pthread_mutex_destroy(&node_ptr->lock);
@@ -58,7 +58,7 @@ int delete_data_node(data_node *node_ptr) {
 }
 
 int get_data_from_node(data_node *node_ptr, key_store_value *value_out) {
-    if (node_ptr == NULL || value_out == NULL) return -1; // Handle null pointer
+    if (node_ptr == NULL || value_out == NULL) return -20; // Handle null pointer
 
     if (node_ptr->data_size == 0 || node_ptr->data == NULL) {
         value_out->data = NULL;
@@ -67,7 +67,7 @@ int get_data_from_node(data_node *node_ptr, key_store_value *value_out) {
     }
 
     value_out->data = (unsigned char *)allocate_memory(node_ptr->data_size);
-    if (value_out->data == NULL) return -1; // Handle memory allocation failure
+    if (value_out->data == NULL) return -10; // Handle memory allocation failure
 
     memcpy(value_out->data, node_ptr->data, node_ptr->data_size);
     value_out->data_size = node_ptr->data_size;
@@ -130,7 +130,7 @@ int _add_data_to_node(data_node *node_ptr, key_store_value* value)
     node_ptr->data = (unsigned char *)allocate_memory(value->data_size);
 
     if (node_ptr->data == NULL) {
-        return -1; // Handle memory allocation failure
+        return -10; // Handle memory allocation failure
     }
 
     memcpy(node_ptr->data, value->data, value->data_size);
@@ -152,7 +152,7 @@ int _add_data_to_node(data_node *node_ptr, key_store_value* value)
  */
 int _add_key_to_node(data_node *node_ptr, const char *key, size_t key_len, uint32_t key_hash) 
 {
-    if (node_ptr == NULL || key == NULL || key[0] == '\0' || key_len == 0) return -1; // Handle null pointer or invalid key
+    if (node_ptr == NULL || key == NULL || key[0] == '\0' || key_len == 0) return -20; // Handle null pointer or invalid key
 
     memcpy(node_ptr->key, key, key_len);
     node_ptr->key[key_len - 1] = '\0';  // Ensure null termination
@@ -175,7 +175,7 @@ int _add_key_to_node(data_node *node_ptr, const char *key, size_t key_len, uint3
 */
 int _update_data_node(data_node *node_ptr, key_store_value* new_value) {
 
-    if(new_value == NULL || new_value->data == NULL) return -1; // Handle null pointer
+    if(new_value == NULL || new_value->data == NULL) return -20; // Handle null pointer
 
     if(new_value->data_size == 0)
     {
@@ -187,7 +187,7 @@ int _update_data_node(data_node *node_ptr, key_store_value* new_value) {
 
     if(node_ptr->data_size != new_value->data_size) {
         unsigned char *new_data = (unsigned char *)reallocate_memory(node_ptr->data, new_value->data_size);
-        if (new_data == NULL)  return -1; // Handle memory allocation failure
+        if (new_data == NULL)  return -10; // Handle memory allocation failure
 
         node_ptr->data = new_data;
         node_ptr->data_size = new_value->data_size;

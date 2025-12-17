@@ -28,8 +28,12 @@ TEST_SRC  = $(TEST_DIR)/test_runner.c
 # Auto-detect immediate subdirectories inside keystore
 KEYSTORE_SUBDIRS := $(shell ls -d $(KEYSTORE_DIR)/*/ 2>/dev/null | xargs -n1 basename)
 
-# Collect all .c files from detected subdirectories
-KEYSTORE_SRC := $(foreach d,$(KEYSTORE_SUBDIRS),$(wildcard $(KEYSTORE_DIR)/$(d)/*.c))
+# List of .c files to exclude from build (space-separated, relative to KEYSTORE_DIR)
+KEYSTORE_EXCLUDE = bucket/hash_buckets_operation.c bucket/hash_buckets_stats.c
+
+# Collect all .c files from detected subdirectories, then filter out excluded files
+KEYSTORE_SRC := $(filter-out $(addprefix $(KEYSTORE_DIR)/,$(KEYSTORE_EXCLUDE)), \
+                 $(foreach d,$(KEYSTORE_SUBDIRS),$(wildcard $(KEYSTORE_DIR)/$(d)/*.c)))
 
 # Map source files to object files in build directory
 KEYSTORE_OBJS := $(patsubst $(KEYSTORE_DIR)/%.c,$(BUILD_DIR)/%.o,$(KEYSTORE_SRC))

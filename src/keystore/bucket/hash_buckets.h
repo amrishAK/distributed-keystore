@@ -4,16 +4,6 @@
 #include "core/type_definition.h"
 #include <stdbool.h>
 
-typedef struct hash_bucket_memory_pool
-{
-    hash_bucket* hash_buckets_ptr; // Pointer to the array of hash buckets
-    unsigned int block_size; // Size of each block
-    unsigned int total_blocks; // Total number of blocks in the pool
-    bool is_initialized; // Flag to indicate if the pool is initialized
-    bool is_concurrency_enabled; // Flag to indicate if concurrency control is enabled
-} hash_bucket_memory_pool;
-
-
 /**
  * @fn initialise_hash_buckets
  * @brief Initializes the hash bucket system with the specified bucket size.
@@ -82,5 +72,11 @@ int edit_node_in_bucket(unsigned int index, const char *key, uint32_t key_hash, 
  */
 int delete_node_from_bucket(unsigned int index, const char *key, uint32_t key_hash);
 
+/**
+ * @fn get_hash_bucket_pool_stats
+ * @brief Retrieves statistics about the hash bucket memory pool.
+ * @param pool_out Pointer to a keystore_stats structure to receive the statistics.
+ */
+void get_hash_bucket_pool_stats(keystore_stats* pool_out);
 
 #endif // HASH_BUCKETS_H

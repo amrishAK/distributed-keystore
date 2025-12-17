@@ -22,7 +22,7 @@ static int _cleanup_memory_pool(memory_pool *pool);
 #pragma region Public Function Definitions
 int initialize_memory_manager(const memory_manager_config config)
 {
-    if(config.bucket_size == 0 || config.pre_allocation_factor <= 0 || config.pre_allocation_factor > 1) return -1; // Invalid configuration
+    if(config.bucket_size == 0 || config.pre_allocation_factor <= 0 || config.pre_allocation_factor > 1) return -21; // Invalid configuration parameters error
 
     g_config = config;
     int pool_creation_result = 0;
@@ -31,11 +31,7 @@ int initialize_memory_manager(const memory_manager_config config)
 
     if(config.allocate_tree_pool)  pool_creation_result = _create_memory_pool(&g_tree_pool, sizeof(tree_node));
 
-    if(pool_creation_result != 0)
-    {
-        cleanup_memory_manager();
-        return -1; // Failed to create one of the pools
-    }
+    if(pool_creation_result != 0) cleanup_memory_manager();
 
     return pool_creation_result;
 }
@@ -113,7 +109,7 @@ void* reallocate_memory(void *ptr, size_t new_size)
  */
 int _create_memory_pool(memory_pool *pool, size_t block_size)
 {
-    if(pool == NULL || block_size == 0 || g_config.pre_allocation_factor < 0) return -1; // Invalid parameters
+    if(pool == NULL || block_size == 0 || g_config.pre_allocation_factor < 0) return -21; // Invalid parameters error
 
     if(g_config.pre_allocation_factor == 0) return 0; // No pre-allocation requested
 
@@ -125,12 +121,12 @@ int _create_memory_pool(memory_pool *pool, size_t block_size)
     
     if(g_config.is_concurrency_enabled) 
     {
-        if(pthread_mutex_init(&pool->pool_lock, NULL) != 0) return -1; // Mutex initialization failed
+        if(pthread_mutex_init(&pool->pool_lock, NULL) != 0) return -11; // Mutex initialization failed
     }
 
     // Allocate memory for the pool
     pool->next_block_ptr = malloc(block_size * pool->total_blocks);
-    if(pool->next_block_ptr == NULL) return -1; // Memory allocation failed
+    if(pool->next_block_ptr == NULL) return -10; // Memory allocation failed
 
     // Allocate memory for the free block list
     pool->free_block_list = (void **)malloc(sizeof(void *) * pool->total_blocks);
@@ -138,7 +134,7 @@ int _create_memory_pool(memory_pool *pool, size_t block_size)
     {
         free(pool->next_block_ptr);
         pool->next_block_ptr = NULL;
-        return -1; // Memory allocation failed
+        return -10; // Memory allocation failed
     }
 
     pool->pool_start_ptr = (char *)pool->next_block_ptr;
@@ -263,7 +259,7 @@ bool _is_pointer_from_pool (memory_pool *pool, void *ptr) {
  */
 int _cleanup_memory_pool(memory_pool *pool)
 {
-    if(pool == NULL) return -1; // Invalid parameter
+    if(pool == NULL) return -20; // Invalid parameter
 
     if(!pool->is_initialized) return 0; // Nothing to clean up
 

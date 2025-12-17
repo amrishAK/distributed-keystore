@@ -71,4 +71,15 @@ int get_key(const char *key, key_store_value* value_out);
  */
 int delete_key(const char *key);
 
+/**
+ * @fn get_keystore_stats
+ * @brief Retrieves statistics about the key store.
+ *
+ * This function gathers various statistics about the key store, including
+ * key distribution, memory usage, and operation counts.
+ *
+ * @return A keystore_stats structure containing the collected statistics.
+ */
+keystore_stats get_keystore_stats(void);
+
 #endif // KEY_STORE_H

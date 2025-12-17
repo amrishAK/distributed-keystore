@@ -40,7 +40,7 @@ void test_update_data_node(void) {
 
 void test_delete_data_node_null(void) {
     int result = delete_data_node(NULL);
-    TEST_ASSERT_EQUAL(0, result);
+    TEST_ASSERT_EQUAL(-20, result);
 }
 
 
@@ -51,13 +51,13 @@ void test_create_data_node_null_params(void) {
 
 void test_update_data_node_null_params(void) {
     int result = update_data_node(NULL, NULL);
-    TEST_ASSERT_EQUAL(-1, result);
+    TEST_ASSERT_EQUAL(-20, result);
 
     unsigned char data[] = "abc";
     key_store_value value = { .data = data, .data_size = sizeof(data) };
     data_node *node = create_data_node("key", 1, &value, false);
     result = update_data_node(node, NULL);
-    TEST_ASSERT_EQUAL(-1, result);
+    TEST_ASSERT_EQUAL(-20, result);
     delete_data_node(node);
 }
 

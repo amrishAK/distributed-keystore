@@ -12,12 +12,11 @@ bool list_node_hash_equals(list_node *node, uint32_t key_hash, const char *key);
 int insert_list_node(list_node **node_header_ptr, uint32_t key_hash, data_node *data)
 {
     if(data == NULL) {
-        return -1; // Invalid data or key
+        return -20; // Invalid data or key
     }
 
     list_node *new_node = create_new_list_node(key_hash, data);
-
-    if(new_node == NULL) return -1; // Memory allocation failure
+    if(new_node == NULL) return -10; // Memory allocation failure
 
     if(node_header_ptr != NULL)
     {
@@ -30,7 +29,7 @@ int insert_list_node(list_node **node_header_ptr, uint32_t key_hash, data_node *
 
 int delete_list_node(list_node **node_header_ptr, const char *key, uint32_t key_hash)
 {
-    if (!node_header_ptr || !*node_header_ptr || !key) return -1;
+    if (!node_header_ptr || !*node_header_ptr || !key) return -21;
 
     list_node *current_node_ptr = *node_header_ptr;
     list_node *previous_node_ptr = NULL;
@@ -50,7 +49,7 @@ int delete_list_node(list_node **node_header_ptr, const char *key, uint32_t key_
 
     if(!node_found)
     {
-        return -1; // Node with specified key and hash not found
+        return -41; // Node with specified key and hash not found
     }
 
     // Node found, perform deletion

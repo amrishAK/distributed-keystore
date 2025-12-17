@@ -26,15 +26,17 @@ static int _get_hash_and_index(const char *key, uint32_t *key_hash_out, unsigned
 #pragma region Public Function Definitions
 int initialise_key_store(unsigned int bucket_size, double pre_memory_allocation_factor, bool is_concurrency_enabled) 
 { 
-    if(bucket_size == 0 || pre_memory_allocation_factor < 0 || pre_memory_allocation_factor > 1) return -1; // Error handling: Invalid parameters
+    if(bucket_size == 0 || pre_memory_allocation_factor < 0 || pre_memory_allocation_factor > 1) return -21; // Error handling: Invalid parameters
 
-    if(initialise_hash_buckets(bucket_size, is_concurrency_enabled) != 0)  return -1; // Error handling: Failed to initialize hash buckets
+    int hb_init_result = initialise_hash_buckets(bucket_size, is_concurrency_enabled);
+    if(hb_init_result != 0)  return hb_init_result; // Error handling: Failed to initialize hash buckets
 
     memory_manager_config config = {bucket_size, pre_memory_allocation_factor, true, false, is_concurrency_enabled};
 
-    if(initialize_memory_manager(config) != 0) {
+    int memory_init_result = initialize_memory_manager(config);
+    if(memory_init_result != 0) {
         cleanup_hash_buckets();
-        return -1; // Error handling: Failed to initialize memory manager
+        return memory_init_result; // Error handling: Failed to initialize memory manager
     }
 
     g_hash_seed = _generate_hash_seed();
@@ -54,26 +56,34 @@ int cleanup_key_store(void)
 
 int set_key(const char *key, key_store_value* value) 
 {
-    if (value == NULL || value->data == NULL || value->data_size == 0 || key == NULL || key[0] == '\0') return -1; // Error handling: invalid input
+    if (value == NULL || value->data == NULL || value->data_size == 0 || key == NULL || key[0] == '\0') return -20; // Error handling: invalid input
 
     uint32_t key_hash;
     unsigned int index;
 
-    if (_get_hash_and_index(key, &key_hash, &index) != 0) return -1; // Error handling: failed to get hash and index
+    int get_hash_result = _get_hash_and_index(key, &key_hash, &index);
+    if (get_hash_result != 0) return get_hash_result; // Error handling: failed to get hash and index
 
-    if (edit_node_in_bucket(index, key, key_hash, value) == 0) return 0; // Successfully updated existing key
+    int result = edit_node_in_bucket(index, key, key_hash, value);
+    
+    if(result == -41)
+    {
+        result = add_node_to_bucket(index, key, key_hash, value); // Try to add new node if edit failed due to key not found
+    }
 
-    return add_node_to_bucket(index, key, key_hash, value); // If key does not exist, add new key-value pair
+    return result;
 }
 
 
 int get_key(const char *key, key_store_value *value_out) 
 {
-    if (key == NULL || key[0] == '\0') return -1; // Error handling: invalid input
+    if (key == NULL || key[0] == '\0') return -20; // Error handling: invalid input
 
     uint32_t key_hash;
     unsigned int index;
-    if (_get_hash_and_index(key, &key_hash, &index) != 0) return -1; // Error handling: failed to get hash and index
+   
+    int get_hash_result = _get_hash_and_index(key, &key_hash, &index);
+    if (get_hash_result != 0) return get_hash_result; // Error handling: failed to get hash and index
 
     return find_node_in_bucket(index, key, key_hash, value_out);
 }
@@ -81,13 +91,21 @@ int get_key(const char *key, key_store_value *value_out)
 
 int delete_key(const char *key) 
 {    
-    if (key == NULL || key[0] == '\0') return -1; // Error handling: invalid input
+    if (key == NULL || key[0] == '\0') return -20; // Error handling: invalid input
 
     uint32_t key_hash;
     unsigned int index;
-    if (_get_hash_and_index(key, &key_hash, &index) != 0) return -1; // Error handling: failed to get hash and index
+    int get_hash_result = _get_hash_and_index(key, &key_hash, &index);
+    if (get_hash_result != 0) return get_hash_result; // Error handling: failed to get hash and index
 
     return delete_node_from_bucket(index, key, key_hash);
+}
+
+keystore_stats get_keystore_stats(void) 
+{
+    keystore_stats stats = {0};
+    get_hash_bucket_pool_stats(&stats);
+    return stats;
 }
 
 #pragma endregion
@@ -145,12 +163,15 @@ int _get_bucket_index(uint32_t key_hash)
  */
 int _get_hash_and_index(const char *key, uint32_t *key_hash_out, unsigned int *index_out) 
 {
-    if ( key_hash_out == NULL || index_out == NULL) return -1; // Handle error: invalid output pointers
+    if ( key_hash_out == NULL || index_out == NULL) return -20; // Handle error: invalid output pointers
 
     uint32_t key_hash = hash_function_murmur_32(key, g_hash_seed);
+
+    if(key_hash == UINT32_MAX) return -70; // Handle error: hash function failed
+
     int index = _get_bucket_index(key_hash);
 
-    if(index < 0) return -1; // Handle error: invalid index
+    if(index < 0) return -71; // Handle error: invalid index
 
     *key_hash_out = key_hash;
     *index_out = (unsigned int)index;

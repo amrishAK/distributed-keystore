@@ -59,7 +59,7 @@ void test_murmurhash_different_seeds(void) {
 void test_murmurhash_null_key(void) {
     uint32_t seed = 42;
     uint32_t hash = hash_function_murmur_32(NULL, seed);
-    TEST_ASSERT_EQUAL(0, hash);
+    TEST_ASSERT_EQUAL(UINT32_MAX, hash); // Now returns UINT32_MAX for error
 }
 
 void test_murmurhash_long_string(void) {

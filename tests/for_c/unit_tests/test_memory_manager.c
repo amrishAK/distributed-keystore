@@ -11,11 +11,11 @@ void test_initialize_memory_manager_valid_config(void) {
 
 void test_initialize_memory_manager_invalid_config(void) {
     memory_manager_config config1 = { .bucket_size = 0, .pre_allocation_factor = 0.5, .allocate_list_pool = true, .allocate_tree_pool = false, .is_concurrency_enabled = false };
-    TEST_ASSERT_EQUAL(-1, initialize_memory_manager(config1));
+    TEST_ASSERT_EQUAL(-21, initialize_memory_manager(config1));
     memory_manager_config config2 = { .bucket_size = 10, .pre_allocation_factor = 0.0, .allocate_list_pool = true, .allocate_tree_pool = false, .is_concurrency_enabled = false };
-    TEST_ASSERT_EQUAL(-1, initialize_memory_manager(config2));
+    TEST_ASSERT_EQUAL(-21, initialize_memory_manager(config2));
     memory_manager_config config3 = { .bucket_size = 10, .pre_allocation_factor = 1.5, .allocate_list_pool = true, .allocate_tree_pool = false, .is_concurrency_enabled = false };
-    TEST_ASSERT_EQUAL(-1, initialize_memory_manager(config3));
+    TEST_ASSERT_EQUAL(-21, initialize_memory_manager(config3));
 }
 
 void test_allocate_and_free_from_list_pool(void) {

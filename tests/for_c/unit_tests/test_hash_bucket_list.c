@@ -28,7 +28,7 @@ void test_insert_and_find_list_node(void) {
 void test_delete_list_node_not_found(void) {
     list_node *head = NULL;
     int result = delete_list_node(&head, "notfound", 99999);
-    TEST_ASSERT_EQUAL(-1, result);
+    TEST_ASSERT_EQUAL(-21, result);
 }
 
 void test_find_list_node_not_found(void) {
@@ -97,7 +97,7 @@ void test_delete_head_and_middle_node(void) {
 void test_insert_null_data(void) {
     list_node *head = NULL;
     int result = insert_list_node(&head, 123, NULL);
-    TEST_ASSERT_EQUAL(-1, result);
+    TEST_ASSERT_EQUAL(-20, result);
 }
 
 void test_insert_empty_key(void) {
@@ -109,7 +109,7 @@ void test_insert_empty_key(void) {
     key_store_value value = { .data = data, .data_size = data_size };
     data_node *dnode = create_data_node(key, hash, &value, false);
     int result = insert_list_node(&head, hash, dnode);
-    TEST_ASSERT_EQUAL(-1, result);
+    TEST_ASSERT_EQUAL(-20, result);
     list_node *found = find_list_node(head, key, hash);
     TEST_ASSERT_NULL(found);
     delete_list_node(&head, key, hash);
@@ -167,11 +167,11 @@ void test_insert_null_key(void) {
     list_node *head = NULL;
     unsigned char *data = NULL;
     size_t data_size = 0;
-        key_store_value value = { .data = data, .data_size = data_size };
-        data_node *dnode = create_data_node(NULL, 123, &value, false);
+    key_store_value value = { .data = data, .data_size = data_size };
+    data_node *dnode = create_data_node(NULL, 123, &value, false);
     int result = insert_list_node(&head, 123, dnode);
     // Should handle gracefully (depends on your implementation)
-    TEST_ASSERT_EQUAL(-1, result);
+    TEST_ASSERT_EQUAL(-20, result);
 }
 
 int test_hash_bucket_list_suite(void) {

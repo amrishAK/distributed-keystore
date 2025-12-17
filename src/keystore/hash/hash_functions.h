@@ -14,7 +14,7 @@
  *
  * @param key  The input string to be hashed. If NULL, the function returns 0.
  * @param seed A 32-bit seed value to initialize the hash. Different seeds produce different hashes.
- * @return A 32-bit hash value computed from the input key and seed.
+ * @return A 32-bit hash value computed from the input key and seed or UINT32_MAX on error.
  */
 uint32_t hash_function_murmur_32(const char *key,  uint32_t seed);
 
