@@ -63,6 +63,10 @@
     "string.h": "c",
     "stdlib.h": "c",
     "key_store.h": "c",
-    "memory_manager.h": "c"
+    "memory_manager.h": "c",
+    "math.h": "c",
+    "stdio.h": "c",
+    "stdatomic.h": "c",
+    "pthread.h": "c"
   }
 }

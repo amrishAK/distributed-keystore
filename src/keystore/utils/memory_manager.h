@@ -29,6 +29,7 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
+#include <pthread.h>
 
 
 /**
@@ -64,6 +65,8 @@ typedef struct memory_pool {
     void ** free_block_list; // Array of pointers to free blocks
     bool is_initialized; // Flag to indicate if the pool is initialized
 
+    pthread_mutex_t pool_lock; // Mutex for thread-safe access
+
 } memory_pool;
 
 typedef struct memory_manager_config {
@@ -71,6 +74,7 @@ typedef struct memory_manager_config {
     double pre_allocation_factor;
     bool allocate_list_pool;
     bool allocate_tree_pool;
+    bool is_concurrency_enabled;
 } memory_manager_config;
 
 /**

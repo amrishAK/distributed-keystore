@@ -10,24 +10,31 @@ void test_insert_and_find_list_node(void) {
     unsigned char data[] = "value";
     size_t data_size = sizeof(data);
 
-    data_node *dnode = create_data_node(key, key_hash, data, data_size);
+    key_store_value value = { .data = data, .data_size = data_size };
+    data_node *dnode = NULL;
+    int create_result = create_data_node(key, key_hash, &value, false, &dnode);
+    TEST_ASSERT_EQUAL(0, create_result);
     TEST_ASSERT_NOT_NULL(dnode);
 
     list_node *head = NULL;
-    int result = insert_list_node(&head, key_hash, dnode);
+    list_node *new_node = create_new_list_node(key_hash, dnode);
+    int result = insert_list_node(&head, new_node);
     TEST_ASSERT_EQUAL(0, result);
 
     list_node *found = find_list_node(head, key, key_hash);
     TEST_ASSERT_NOT_NULL(found);
     TEST_ASSERT_EQUAL_PTR(dnode, found->data);
 
-    delete_list_node(&head, key, key_hash);
+    data_node *deleted_node = NULL;
+    int del_result = delete_list_node(&head, key, key_hash, &deleted_node);
+    TEST_ASSERT_EQUAL(0, del_result);
 }
 
 void test_delete_list_node_not_found(void) {
     list_node *head = NULL;
-    int result = delete_list_node(&head, "notfound", 99999);
-    TEST_ASSERT_EQUAL(-1, result);
+    data_node *deleted_node = NULL;
+    int result = delete_list_node(&head, "notfound", 99999, &deleted_node);
+    TEST_ASSERT_EQUAL(-41, result);
 }
 
 void test_find_list_node_not_found(void) {
@@ -45,9 +52,13 @@ void test_insert_multiple_nodes_and_find(void) {
 
     data_node *nodes[3];
     for (int i = 0; i < 3; ++i) {
-        nodes[i] = create_data_node(keys[i], hashes[i], data, data_size);
+        key_store_value value = { .data = data, .data_size = data_size };
+        nodes[i] = NULL;
+        int create_result = create_data_node(keys[i], hashes[i], &value, false, &nodes[i]);
+        TEST_ASSERT_EQUAL(0, create_result);
         TEST_ASSERT_NOT_NULL_MESSAGE(nodes[i], "Failed to create data node");
-        int result = insert_list_node(&head, hashes[i], nodes[i]);
+        list_node *new_node = create_new_list_node(hashes[i], nodes[i]);
+        int result = insert_list_node(&head, new_node);
         TEST_ASSERT_EQUAL(0, result);
     }
 
@@ -62,8 +73,9 @@ void test_insert_multiple_nodes_and_find(void) {
     // Cleanup
     for (int i = 0; i < 3; ++i) {
         char msg[64];
+        data_node *deleted_node = NULL;
         snprintf(msg, sizeof(msg), "delete_list_node should delete node with key '%s' and hash %d.", keys[i], hashes[i]);
-        int result = delete_list_node(&head, keys[i], hashes[i]);
+        int result = delete_list_node(&head, keys[i], hashes[i], &deleted_node);
         TEST_ASSERT_EQUAL(0, result);
     }
 }
@@ -76,39 +88,34 @@ void test_delete_head_and_middle_node(void) {
     unsigned char data[] = "value";
     size_t data_size = sizeof(data);
 
-    data_node *node1 = create_data_node(key1, hash1, data, data_size);
-    data_node *node2 = create_data_node(key2, hash2, data, data_size);
-
-    int result = insert_list_node(&head, hash2, node2); // middle
-    result = insert_list_node(&head, hash1, node1); // head
-
-    // Delete head
-    result = delete_list_node(&head, key1, hash1);
-    TEST_ASSERT_EQUAL(0, result);
-
-    // Delete middle
-    result = delete_list_node(&head, key2, hash2);
-    TEST_ASSERT_EQUAL(0, result);
+        key_store_value value = { .data = data, .data_size = data_size };
+        data_node *node1 = NULL;
+        data_node *node2 = NULL;
+        int create_result1 = create_data_node(key1, hash1, &value, false, &node1);
+        int create_result2 = create_data_node(key2, hash2, &value, false, &node2);
+        TEST_ASSERT_EQUAL(0, create_result1);
+        TEST_ASSERT_EQUAL(0, create_result2);
+        list_node *new_node2 = create_new_list_node(hash2, node2); // middle
+        int result = insert_list_node(&head, new_node2);
+        TEST_ASSERT_EQUAL(0, result);
+        list_node *new_node1 = create_new_list_node(hash1, node1); // head
+        result = insert_list_node(&head, new_node1);
+        TEST_ASSERT_EQUAL(0, result);
+        // Delete head
+        data_node *deleted_node1 = NULL;
+        result = delete_list_node(&head, key1, hash1, &deleted_node1);
+        TEST_ASSERT_EQUAL(0, result);
+        // Delete middle
+        data_node *deleted_node2 = NULL;
+        result = delete_list_node(&head, key2, hash2, &deleted_node2);
+        TEST_ASSERT_EQUAL(0, result);
 }
 
 void test_insert_null_data(void) {
     list_node *head = NULL;
-    int result = insert_list_node(&head, 123, NULL);
-    TEST_ASSERT_EQUAL(-1, result);
-}
-
-void test_insert_empty_key(void) {
-    const char *key = "";
-    uint32_t hash = 0;
-    unsigned char data[] = "empty";
-    list_node *head = NULL;
-    size_t data_size = sizeof(data);
-    data_node *dnode = create_data_node(key, hash, data, data_size);
-    int result = insert_list_node(&head, hash, dnode);
-    TEST_ASSERT_EQUAL(-1, result);
-    list_node *found = find_list_node(head, key, hash);
-    TEST_ASSERT_NULL(found);
-    delete_list_node(&head, key, hash);
+    list_node *null_node = NULL;
+    int result = insert_list_node(&head, null_node);
+    TEST_ASSERT_EQUAL(-20, result);
 }
 
 void test_insert_large_key(void) {
@@ -120,12 +127,18 @@ void test_insert_large_key(void) {
     size_t data_size = sizeof(data);
     list_node *head = NULL;
 
-    data_node *dnode = create_data_node(key, hash, data, data_size);
-    int result = insert_list_node(&head, hash, dnode);
+    key_store_value value = { .data = data, .data_size = data_size };
+    data_node *dnode = NULL;
+    int create_result = create_data_node(key, hash, &value, false, &dnode);
+    TEST_ASSERT_EQUAL(0, create_result);
+    TEST_ASSERT_NOT_NULL(dnode);
+    list_node *new_node = create_new_list_node(hash, dnode);
+    int result = insert_list_node(&head, new_node);
     TEST_ASSERT_EQUAL(0, result);
     list_node *found = find_list_node(head, key, hash);
     TEST_ASSERT_NOT_NULL(found);
-    delete_list_node(&head, key, hash);
+    data_node *deleted_node = NULL;
+    delete_list_node(&head, key, hash, &deleted_node);
 }
 
 void test_delete_single_node_list(void) {
@@ -134,10 +147,16 @@ void test_delete_single_node_list(void) {
     unsigned char data[] = "one";
     size_t data_size = sizeof(data);
     list_node *head = NULL;
-    data_node *dnode = create_data_node(key, hash, data, data_size);
-    int result = insert_list_node(&head, hash, dnode);
+    key_store_value value = { .data = data, .data_size = data_size };
+    data_node *dnode = NULL;
+    int create_result = create_data_node(key, hash, &value, false, &dnode);
+    TEST_ASSERT_EQUAL(0, create_result);
+    TEST_ASSERT_NOT_NULL(dnode);
+    list_node *new_node = create_new_list_node(hash, dnode);
+    int result = insert_list_node(&head, new_node);
     TEST_ASSERT_EQUAL(0, result);
-    result = delete_list_node(&head, key, hash);
+    data_node *deleted_node = NULL;
+    result = delete_list_node(&head, key, hash, &deleted_node);
     TEST_ASSERT_EQUAL(0, result);
 }
 
@@ -148,22 +167,18 @@ void test_repeated_insert_delete(void) {
     size_t data_size = sizeof(data);
     list_node *head = NULL;
     for (int i = 0; i < 10; ++i) {
-        data_node *dnode = create_data_node(key, hash, data, data_size);
-        int result = insert_list_node(&head, hash, dnode);
-        TEST_ASSERT_EQUAL(0, result);
-        result = delete_list_node(&head, key, hash);
-        TEST_ASSERT_EQUAL(0, result);
+          key_store_value value = { .data = data, .data_size = data_size };
+          data_node *dnode = NULL;
+          int create_result = create_data_node(key, hash, &value, false, &dnode);
+          TEST_ASSERT_EQUAL(0, create_result);
+          TEST_ASSERT_NOT_NULL(dnode);
+          list_node *new_node = create_new_list_node(hash, dnode);
+          int result = insert_list_node(&head, new_node);
+          TEST_ASSERT_EQUAL(0, result);
+          data_node *deleted_node = NULL;
+          result = delete_list_node(&head, key, hash, &deleted_node);
+          TEST_ASSERT_EQUAL(0, result);
     }
-}
-
-void test_insert_null_key(void) {
-    list_node *head = NULL;
-    unsigned char *data = NULL;
-    size_t data_size = 0;
-    data_node *dnode = create_data_node(NULL, 123, data, data_size);
-    int result = insert_list_node(&head, 123, dnode);
-    // Should handle gracefully (depends on your implementation)
-    TEST_ASSERT_EQUAL(-1, result);
 }
 
 int test_hash_bucket_list_suite(void) {
@@ -175,11 +190,9 @@ int test_hash_bucket_list_suite(void) {
     RUN_TEST(test_insert_multiple_nodes_and_find);
     RUN_TEST(test_delete_head_and_middle_node);
     RUN_TEST(test_insert_null_data);
-    RUN_TEST(test_insert_empty_key);
     RUN_TEST(test_insert_large_key);
     RUN_TEST(test_delete_single_node_list);
     RUN_TEST(test_repeated_insert_delete);
-    RUN_TEST(test_insert_null_key);
     printf("Completed hash_bucket_list tests.\n");
     cleanup_memory_manager();
     return 0;

@@ -157,13 +157,13 @@ uint32_t finalization(uint32_t hash) {
  *
  * @param key   The input string to hash.
  * @param seed  The seed value for the hash function.
- * @return      The resulting 32-bit hash value.
+ * @return      The resulting 32-bit hash value or UINT32_MAX on error.
  */
 uint32_t hash_function_murmur_32(const char *key,  uint32_t seed) {
   
     //Validation
     if (key == NULL) {
-        return 0;  // Return 0 for NULL keys
+        return UINT32_MAX;  // Return error code for NULL keys
     }
 
     // Initialize
