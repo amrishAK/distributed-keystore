@@ -6,6 +6,7 @@
 #pragma region Private Function Declarations
 static double _calculate_standard_deviation_keys_per_bucket(key_entry_stats* stats, hash_bucket_memory_pool* pool_ptr);
 static double _calculate_median_keys_per_bucket(key_entry_stats* stats, hash_bucket_memory_pool* pool_ptr);
+static int _uint_compare(const void *a, const void *b);
 #pragma endregion
 
 #pragma region Private Function Definitions
@@ -65,7 +66,8 @@ static double _calculate_median_keys_per_bucket(key_entry_stats* stats, hash_buc
     }
 
     // Sort the array to find median
-    qsort(keys_per_bucket, stats->nonempty_buckets, sizeof(unsigned int), (int (*)(const void*, const void*))strcmp);
+    
+    qsort(keys_per_bucket, stats->nonempty_buckets, sizeof(unsigned int), _uint_compare);
 
     double median;
     if (stats->nonempty_buckets % 2 == 0) {
@@ -205,6 +207,23 @@ memory_pool_stats _calculate_memory_stats(hash_bucket_memory_pool* pool_ptr, uns
     mem_stats.memory_per_key_bytes = memory_per_key_bytes;
 
     return mem_stats;
+}
+
+/**
+ * @fn _uint_compare
+ * @brief Comparison function for qsort to sort unsigned integers.
+ *
+ * This function compares two unsigned integers and is used by qsort
+ * to sort an array of unsigned integers in ascending order.
+ *
+ * @param a Pointer to the first unsigned integer.
+ * @param b Pointer to the second unsigned integer.
+ * @return int Negative if a < b, zero if a == b, positive if a > b.
+ */
+int _uint_compare(const void *a, const void *b){
+    unsigned int int_a = *(unsigned int*)a;
+    unsigned int int_b = *(unsigned int*)b;
+    return (int_a > int_b) - (int_a < int_b);
 }
 
 #pragma endregion

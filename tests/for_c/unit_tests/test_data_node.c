@@ -8,13 +8,14 @@ void test_create_data_node(void) {
     unsigned char data[] = "value";
     key_store_value value = { .data = data, .data_size = sizeof(data) };
 
-    data_node *node = create_data_node(key, key_hash, &value, false);
+    data_node *node = NULL;
+    int result = create_data_node(key, key_hash, &value, false, &node);
+    TEST_ASSERT_EQUAL(0, result);
     TEST_ASSERT_NOT_NULL(node);
     TEST_ASSERT_EQUAL_STRING(key, node->key);
     TEST_ASSERT_EQUAL_UINT32(key_hash, node->key_hash);
     TEST_ASSERT_EQUAL_UINT8_ARRAY(data, node->data, sizeof(data));
     TEST_ASSERT_EQUAL(sizeof(data), node->data_size);
-
     delete_data_node(node);
 }
 
@@ -24,17 +25,18 @@ void test_update_data_node(void) {
     unsigned char data[] = "value";
     key_store_value value = { .data = data, .data_size = sizeof(data) };
 
-    data_node *node = create_data_node(key, key_hash, &value, false);
+    data_node *node = NULL;
+    int result = create_data_node(key, key_hash, &value, false, &node);
+    TEST_ASSERT_EQUAL(0, result);
     TEST_ASSERT_NOT_NULL(node);
 
     unsigned char new_data[] = "newval";
     key_store_value new_value = { .data = new_data, .data_size = sizeof(new_data) };
 
-    int result = update_data_node(node, &new_value);
+    result = update_data_node(node, &new_value);
     TEST_ASSERT_EQUAL(0, result);
     TEST_ASSERT_EQUAL_UINT8_ARRAY(new_data, node->data, sizeof(new_data));
     TEST_ASSERT_EQUAL(sizeof(new_data), node->data_size);
-
     delete_data_node(node);
 }
 
@@ -45,7 +47,9 @@ void test_delete_data_node_null(void) {
 
 
 void test_create_data_node_null_params(void) {
-    data_node *node = create_data_node(NULL, 0, NULL, false);
+    data_node *node = NULL;
+    int result = create_data_node(NULL, 0, NULL, false, &node);
+    TEST_ASSERT_NOT_EQUAL(0, result);
     TEST_ASSERT_NULL(node);
 }
 
@@ -55,7 +59,9 @@ void test_update_data_node_null_params(void) {
 
     unsigned char data[] = "abc";
     key_store_value value = { .data = data, .data_size = sizeof(data) };
-    data_node *node = create_data_node("key", 1, &value, false);
+    data_node *node = NULL;
+    int create_result = create_data_node("key", 1, &value, false, &node);
+    TEST_ASSERT_EQUAL(0, create_result);
     result = update_data_node(node, NULL);
     TEST_ASSERT_EQUAL(-20, result);
     delete_data_node(node);
@@ -64,7 +70,9 @@ void test_update_data_node_null_params(void) {
 void test_update_data_node_size_zero(void) {
     unsigned char data[] = "abc";
     key_store_value value = { .data = data, .data_size = sizeof(data) };
-    data_node *node = create_data_node("key", 1, &value, false);
+    data_node *node = NULL;
+    int create_result = create_data_node("key", 1, &value, false, &node);
+    TEST_ASSERT_EQUAL(0, create_result);
     unsigned char new_data[] = "";
     key_store_value new_value = { .data = new_data, .data_size = 0 };
     int result = update_data_node(node, &new_value);
@@ -75,7 +83,9 @@ void test_update_data_node_size_zero(void) {
 void test_update_data_node_with_empty_data(void) {
     unsigned char data[] = "abc";
     key_store_value value = { .data = data, .data_size = sizeof(data) };
-    data_node *node = create_data_node("key", 1, &value, false);
+    data_node *node = NULL;
+    int create_result = create_data_node("key", 1, &value, false, &node);
+    TEST_ASSERT_EQUAL(0, create_result);
     unsigned char new_data[] = "";
     key_store_value new_value = { .data = new_data, .data_size = 0 };
     int result = update_data_node(node, &new_value);
@@ -86,7 +96,9 @@ void test_update_data_node_with_empty_data(void) {
 void test_update_data_node_with_bigger_data(void) {
     unsigned char data[] = "abc";
     key_store_value value = { .data = data, .data_size = sizeof(data) };
-    data_node *node = create_data_node("key", 1, &value, false);
+    data_node *node = NULL;
+    int create_result = create_data_node("key", 1, &value, false, &node);
+    TEST_ASSERT_EQUAL(0, create_result);
     unsigned char new_data[] = "abcdefabcdef";
     key_store_value new_value = { .data = new_data, .data_size = sizeof(new_data) };
     int result = update_data_node(node, &new_value);
@@ -97,7 +109,9 @@ void test_update_data_node_with_bigger_data(void) {
 void test_update_data_node_with_smaller_data(void) {
     unsigned char data[] = "abcabcabc";
     key_store_value value = { .data = data, .data_size = sizeof(data) };
-    data_node *node = create_data_node("key", 1, &value, false);
+    data_node *node = NULL;
+    int create_result = create_data_node("key", 1, &value, false, &node);
+    TEST_ASSERT_EQUAL(0, create_result);
     unsigned char new_data[] = "ab";
     key_store_value new_value = { .data = new_data, .data_size = sizeof(new_data) };
     int result = update_data_node(node, &new_value);
@@ -108,7 +122,9 @@ void test_update_data_node_with_smaller_data(void) {
 void test_update_data_node_with_same_size_data(void) {
     unsigned char data[] = "abcabcabc";
     key_store_value value = { .data = data, .data_size = sizeof(data) };
-    data_node *node = create_data_node("key", 1, &value, false);
+    data_node *node = NULL;
+    int create_result = create_data_node("key", 1, &value, false, &node);
+    TEST_ASSERT_EQUAL(0, create_result);
     unsigned char new_data[] = "abcabcabc";
     key_store_value new_value = { .data = new_data, .data_size = sizeof(new_data) };
     int result = update_data_node(node, &new_value);
@@ -119,7 +135,9 @@ void test_update_data_node_with_same_size_data(void) {
 void test_delete_data_node_valid(void) {
     unsigned char data[] = "abc";
     key_store_value value = { .data = data, .data_size = sizeof(data) };
-    data_node *node = create_data_node("key", 1, &value, false);
+    data_node *node = NULL;
+    int create_result = create_data_node("key", 1, &value, false, &node);
+    TEST_ASSERT_EQUAL(0, create_result);
     int result = delete_data_node(node);
     TEST_ASSERT_EQUAL(0, result);
 }

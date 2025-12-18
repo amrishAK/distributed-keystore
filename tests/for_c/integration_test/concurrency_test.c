@@ -53,7 +53,7 @@ void *thread_set_get(void *arg) {
         int set_result = set_key(key, &kv);
         clock_gettime(CLOCK_MONOTONIC, &t2);
         if(set_result != 0) {
-            printf("[Thread %d] Failed to set key %s\n due to %d", ctx->thread_id, key, set_result);
+            printf("[Thread %d] Failed to set key %s, due to %d\n", ctx->thread_id, key, set_result);
             atomic_fetch_add(&race_errors, 1);
         } else {
             int idx = atomic_fetch_add(&set_latency_idx, 1);

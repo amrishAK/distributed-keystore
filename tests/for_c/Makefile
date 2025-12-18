@@ -150,5 +150,5 @@ help:
 	@echo "  debug           - Show detected dirs and files"
 	@echo "  clean           - Remove build/coverage artifacts"
 	@echo "  help            - Show this help message"
-	@echo "  concurrency_test        - Build concurrency test binary"
+	@echo "  concurrency_build        - Build concurrency test binary"
 	@echo "  run-concurrency-test    - Build and run concurrency test"

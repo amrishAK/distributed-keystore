@@ -26,7 +26,12 @@ int insert_list_node(list_node **node_header_ptr, list_node* new_list_node)
 
 int delete_list_node(list_node **node_header_ptr, const char *key, uint32_t key_hash, data_node **deleted_node_out)
 {
-    if (!node_header_ptr || !*node_header_ptr || !key || !deleted_node_out) return -21;
+    if (!node_header_ptr || !key || !deleted_node_out) return -21;
+
+    if(!*node_header_ptr)
+    {
+        return -41; // List is empty, node not found
+    }
 
     list_node *current_node_ptr = *node_header_ptr;
     list_node *previous_node_ptr = NULL;
