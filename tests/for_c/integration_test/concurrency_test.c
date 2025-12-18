@@ -174,14 +174,12 @@ int main() {
     printf("Memory utilization percent: %.2f%%\n", stats.memory_pool.memory_utilization_percent);
     printf("Memory per key bytes: %zu\n", stats.memory_pool.memory_per_key_bytes);
     printf("Fragmentation percent: %.2f%%\n", stats.memory_pool.fragmentation_percent);
-    printf("\n-- Operation Counters --\n");
+    printf("\n-- Bucket Operation Counters --\n");
     printf("Total add ops: %lu\n", stats.operation_counters.total_add_ops);
-    printf("Total edit ops: %lu\n", stats.operation_counters.total_edit_ops);
-    printf("Total get ops: %lu\n", stats.operation_counters.total_get_ops);
+    printf("Total find ops: %lu\n", stats.operation_counters.total_find_ops);
     printf("Total delete ops: %lu\n", stats.operation_counters.total_delete_ops);
     printf("Failed add ops: %lu\n", stats.operation_counters.failed_add_ops);
-    printf("Failed edit ops: %lu\n", stats.operation_counters.failed_edit_ops);
-    printf("Failed get ops: %lu\n", stats.operation_counters.failed_get_ops);
+    printf("Failed find ops: %lu\n", stats.operation_counters.failed_find_ops);
     printf("Failed delete ops: %lu\n", stats.operation_counters.failed_delete_ops);
     printf("Key missing after set (bucket-level concurrency): %d\n", race_errors);
     printf("Operation error code breakdown:\n");
@@ -191,6 +189,23 @@ int main() {
         }
     }
 
+    printf("\n-- Data Node Operation Counters --\n");
+
+    printf("Total update ops: %lu\n", stats.data_node_counters.total_update_ops);
+    printf("Total read ops: %lu\n", stats.data_node_counters.total_read_ops);
+    printf("Total delete ops: %lu\n", stats.data_node_counters.total_delete_ops);
+    printf("Total create ops: %lu\n", stats.data_node_counters.total_create_ops);
+    printf("Failed update ops: %lu\n", stats.data_node_counters.failed_update_ops);
+    printf("Failed read ops: %lu\n", stats.data_node_counters.failed_read_ops);
+    printf("Failed delete ops: %lu\n", stats.data_node_counters.failed_delete_ops);
+    printf("Failed create ops: %lu\n", stats.data_node_counters.failed_create_ops);
+    printf("Data node operation error code breakdown:\n"); 
+    for(int i = 0; i < 100; ++i) {
+        if(stats.data_node_counters.error_code_counters[i] > 0) {
+            printf("Error code -%d occurred %lu times\n", i, stats.data_node_counters.error_code_counters[i]);
+        }
+    }
+    printf("=================================\n");
     if (race_errors == 0) {
         printf("Result: PASS\n");
     } else {

@@ -10,16 +10,13 @@ typedef struct {
     hash_bucket *hash_bucket_ptr;
     const char *key;
     uint32_t key_hash;
-    key_store_value* value;
-    bool is_concurrency_enabled;
+    list_node* new_list_node;
 } bucket_operation_args;
 
 typedef enum {
     ADD_NODE,
     DELETE_NODE,
-    FIND_NODE,
-    EDIT_NODE,
-    GET_STATS
+    FIND_NODE
 } bucket_operation_type_t;
 
 #pragma endregion
@@ -29,9 +26,6 @@ typedef enum {
 // Helper to find data node in bucket
 static data_node* _find_data_node(hash_bucket *hash_bucket_ptr, const char *key, uint32_t key_hash);
 
-// Mutex lock wrapper
-static int _mutex_lock_wrapper(bucket_operation_type_t operation_type, data_node* data_node_ptr, key_store_value* value_out);
-
 // Stat helpers
 static int _operation_counter_increment(bucket_operation_type_t operation_type, int operation_result);
 
@@ -39,7 +33,7 @@ static int _operation_counter_increment(bucket_operation_type_t operation_type, 
 
 
 #pragma region Private Global Variables
-static operation_counter_stats g_operation_counters = {0};
+static bucket_operation_counter_stats g_operation_counters = {0};
 #pragma endregion
 
 
@@ -54,10 +48,10 @@ static operation_counter_stats g_operation_counters = {0};
  *
  * @return operation_counter_stats A copy of the global operation counters.
  */
-operation_counter_stats _get_operation_counters(void)
+bucket_operation_counter_stats _get_operation_counters(void)
 {
-    operation_counter_stats counters_copy;
-    memcpy(&counters_copy, &g_operation_counters, sizeof(operation_counter_stats));
+    bucket_operation_counter_stats counters_copy;
+    memcpy(&counters_copy, &g_operation_counters, sizeof(bucket_operation_counter_stats));
     return counters_copy;
 }
 
@@ -85,12 +79,8 @@ static int _operation_counter_increment(bucket_operation_type_t operation_type, 
             if (operation_result != 0) g_operation_counters.failed_delete_ops++;
             break;
         case FIND_NODE:
-            g_operation_counters.total_get_ops++;
-            if (operation_result != 0) g_operation_counters.failed_get_ops++;
-            break;
-        case EDIT_NODE:
-            g_operation_counters.total_edit_ops++;
-            if (operation_result != 0) g_operation_counters.failed_edit_ops++;
+            g_operation_counters.total_find_ops++;
+            if (operation_result != 0) g_operation_counters.failed_find_ops++;
             break;
         default:
             break;
@@ -107,26 +97,26 @@ static int _operation_counter_increment(bucket_operation_type_t operation_type, 
 
 #pragma region Bucket Operation Definitions
 
+
 /**
  * @fn _add_node
  * @brief Adds a data node to the specified hash bucket.
  *
- * This function inserts a data node into the hash bucket's container
+ * This function inserts a data node into the hash bucket's container and increments its count after successful addition
  * based on its type (currently only BUCKET_LIST is supported).
  *
- * @param args A struct containing the hash bucket, key hash, and data node to be added.
+ * @param args A struct containing the hash bucket, key hash, and list node to be added.
+ * @note The caller is responsible for creating the list_node with associated data_node. 
+ * @note The caller is responsible for managing the memory of the list_node and data_node in case of failure.
  * @return int Returns 0 on success, or -1 on failure.
  */
 int _add_node(bucket_operation_args args)
 {
-    data_node *new_node = create_data_node(args.key, args.key_hash, args.value, args.is_concurrency_enabled);
-    if (new_node == NULL) return _operation_counter_increment(ADD_NODE, -10); // Error handling: memory allocation failure
-    
     int result = 0;
     switch (args.hash_bucket_ptr->type)
     {
         case BUCKET_LIST:
-            result = insert_list_node(&args.hash_bucket_ptr->container.list, args.key_hash, new_node);
+            result = insert_list_node(&args.hash_bucket_ptr->container.list, args.new_list_node);
             break;
         default:
             result = -43; // Error handling: unsupported bucket type
@@ -135,8 +125,6 @@ int _add_node(bucket_operation_args args)
 
     if(result == 0) {
         args.hash_bucket_ptr->count += 1;
-    } else {
-        delete_data_node(new_node); // Clean up allocated node on failure
     }
 
     return _operation_counter_increment(ADD_NODE, result);
@@ -145,20 +133,21 @@ int _add_node(bucket_operation_args args)
 /**
  * @fn _delete_node
  * @brief Deletes a data node from the specified hash bucket.
- *
  * This function removes a data node from the hash bucket's container
- * based on its type (currently only BUCKET_LIST is supported).
- *
+ * based on its type (currently only BUCKET_LIST is supported) and decrements its count after successful deletion.
+ * 
  * @param args A struct containing the hash bucket, key hash, and key of the node to be deleted.
+ * @param deleted_node_out Pointer to a data_node pointer to receive the deleted node.
+ * @note The caller is responsible for managing the memory of the deleted data_node.
  * @return int Returns 0 on success, or -1 on failure.
  */
-int _delete_node(bucket_operation_args args)
+int _delete_node(bucket_operation_args args, data_node** deleted_node_out)
 {
     int result = 0;
     switch (args.hash_bucket_ptr->type)
     {
         case BUCKET_LIST:
-            result = delete_list_node(&args.hash_bucket_ptr->container.list, args.key, args.key_hash);
+            result = delete_list_node(&args.hash_bucket_ptr->container.list, args.key, args.key_hash, deleted_node_out);
             break;
         default:
             result = -43; // Error handling: unsupported bucket type
@@ -214,37 +203,17 @@ data_node* _find_data_node(hash_bucket *hash_bucket_ptr, const char *key, uint32
  * @param value_out Pointer to a key_store_value structure to receive the found value.
  * @return int Returns 0 on success, or -1 if the node was not found or on error.
  */
-int _find_node(bucket_operation_args args, key_store_value* value_out)
+int _find_node(bucket_operation_args args, data_node** data_node_out)
 {
+    int result = 0;
+
     // Find the data node
     data_node* data_node_ptr = _find_data_node(args.hash_bucket_ptr, args.key, args.key_hash);
-    if(data_node_ptr == NULL)  return _operation_counter_increment(FIND_NODE, -41); //Error handling: node not found
-    
-    int result = 0;
-    result = (args.is_concurrency_enabled) ? _mutex_lock_wrapper(FIND_NODE, data_node_ptr, value_out) : get_data_from_node(data_node_ptr, value_out);
+    result = (data_node_ptr != NULL) ? 0 : -41;
+
+    *data_node_out = data_node_ptr;
     
     return _operation_counter_increment(FIND_NODE, result);
-}
-
-/**
- * @fn _edit_node
- * @brief Edits the data of a node in the specified hash bucket.
- *
- * This function searches for a data node in the hash bucket's container
- * based on its type (currently only BUCKET_LIST is supported) and updates
- * its data if found.
- *
- * @param args A struct containing the hash bucket, key hash, key, and new value for the node to be edited.
- * @return int Returns 0 on success, or -1 if the node was not found or on error.
- */
-int _edit_node(bucket_operation_args args)
-{
-    data_node* data_node_ptr = _find_data_node(args.hash_bucket_ptr, args.key, args.key_hash);
-    if(data_node_ptr == NULL)  return _operation_counter_increment(EDIT_NODE, -41); //Error handling: node not found
-
-    int result = 0;
-    result = (args.is_concurrency_enabled) ? _mutex_lock_wrapper(EDIT_NODE, data_node_ptr, args.value) : update_data_node(data_node_ptr, args.value);
-    return _operation_counter_increment(EDIT_NODE, result);
 }
 
 #pragma endregion
@@ -252,7 +221,7 @@ int _edit_node(bucket_operation_args args)
 #pragma region Concurrency Control Definitions
 
 /**
- * @fn _lock_wrapper
+ * @fn _hash_bucket_lock_wrapper
  * @brief Wraps bucket operations with read-write lock for concurrency control.
  *
  * This function acquires the appropriate lock (read or write) based on the
@@ -263,7 +232,7 @@ int _edit_node(bucket_operation_args args)
  * @param result_out Pointer to a key_store_value structure to receive the result for FIND_NODE operations.
  * @return int Returns the result of the operation, or -1 on lock acquisition failure.
  */
-int _lock_wrapper(bucket_operation_type_t operation_type, bucket_operation_args args, key_store_value *result_out) {
+int _hash_bucket_lock_wrapper(bucket_operation_type_t operation_type, bucket_operation_args args, data_node** data_node_out) {
     
     int lock_result = 0;
     
@@ -273,7 +242,7 @@ int _lock_wrapper(bucket_operation_type_t operation_type, bucket_operation_args 
         lock_result = pthread_rwlock_wrlock(&args.hash_bucket_ptr->lock);
     }
 
-    if (lock_result != 0) return -30; // Handle error: failed to acquire lock
+    if (lock_result != 0) return _operation_counter_increment(operation_type, -30); // Handle error: failed to acquire lock
 
     int operation_result = 0;
     switch (operation_type) {
@@ -281,56 +250,19 @@ int _lock_wrapper(bucket_operation_type_t operation_type, bucket_operation_args 
             operation_result = _add_node(args);
             break;
         case DELETE_NODE:
-            operation_result = _delete_node(args);
+            operation_result = _delete_node(args, data_node_out);
             break;
         case FIND_NODE:
-            operation_result = _find_node(args, result_out);
-            break;
-        case EDIT_NODE:
-            operation_result = _edit_node(args);
+            operation_result = _find_node(args, data_node_out);
             break;
         default: 
             // Error handling: unknown operation
-            operation_result = -47;
+            operation_result = -43;
             break;
     }
 
-    if (pthread_rwlock_unlock(&args.hash_bucket_ptr->lock) != 0) return -31; // Handle error: failed to release lock
-    return operation_result;
-}
-
-/**
- * @fn _mutex_lock_wrapper
- * @brief Wraps data node operations with mutex lock for concurrency control.
- *
- * This function acquires the mutex lock of the data node, performs the
- * operation (FIND_NODE or EDIT_NODE), and then releases the lock.
- *
- * @param operation_type The type of operation to perform (FIND_NODE or EDIT_NODE).
- * @param data_node_ptr Pointer to the data node on which to perform the operation.
- * @param value Pointer to a key_store_value structure for input/output as needed.
- * @return int Returns the result of the operation, or -1 on lock acquisition failure.
- */
-int _mutex_lock_wrapper(bucket_operation_type_t operation_type, data_node* data_node_ptr, key_store_value* value) {
-    int lock_result = pthread_mutex_lock(&data_node_ptr->lock);
-    if (lock_result != 0) return -30; // Handle error: failed to acquire lock
-
-    int operation_result = 0;
-    switch (operation_type) {
-        case FIND_NODE:
-            operation_result = get_data_from_node(data_node_ptr, value);
-            break;
-        case EDIT_NODE:
-            operation_result = update_data_node(data_node_ptr, value);
-            break;
-        default: 
-            // Error handling: unknown operation
-            operation_result = -47;
-            break;
-    }
-
-    if (pthread_mutex_unlock(&data_node_ptr->lock) != 0) return -31; // Handle error: failed to release lock
-    return operation_result;
+    if (pthread_rwlock_unlock(&args.hash_bucket_ptr->lock) != 0) return _operation_counter_increment(operation_type, -31); // Handle error: failed to release lock
+    return _operation_counter_increment(operation_type, operation_result);
 }
 
 #pragma endregion

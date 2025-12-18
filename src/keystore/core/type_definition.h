@@ -112,22 +112,34 @@ typedef struct
 typedef struct
 {
     unsigned long total_add_ops;
-    unsigned long total_edit_ops;
-    unsigned long total_get_ops;
+    unsigned long total_find_ops;
     unsigned long total_delete_ops;
     unsigned long failed_add_ops;
-    unsigned long failed_edit_ops;
-    unsigned long failed_get_ops;
+    unsigned long failed_find_ops;
     unsigned long failed_delete_ops;
     unsigned long error_code_counters[100]; // Array to hold counts for different error codes
-} operation_counter_stats;
+} bucket_operation_counter_stats;
+
+typedef struct
+{
+    unsigned long total_update_ops;
+    unsigned long total_read_ops;
+    unsigned long total_delete_ops;
+    unsigned long total_create_ops;
+    unsigned long failed_update_ops;
+    unsigned long failed_read_ops;
+    unsigned long failed_delete_ops;
+    unsigned long failed_create_ops;
+    unsigned long error_code_counters[100]; // Array to hold counts for different error codes
+} data_node_operation_counters;
 
 typedef struct {
     metadata_stats metadata;
     key_entry_stats key_entries;
     key_collision_stats collisions;
     memory_pool_stats memory_pool;
-    operation_counter_stats operation_counters;
+    bucket_operation_counter_stats operation_counters;
+    data_node_operation_counters data_node_counters;
 } keystore_stats;
 
 #pragma endregion

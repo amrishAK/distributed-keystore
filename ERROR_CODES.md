@@ -49,6 +49,7 @@ This document lists the custom error and return codes used throughout the distri
 | -42  | Duplicate key                             | Attempt to insert duplicate key          |
 | -46  | Data node edit/update failure             | Failed to update node value              |
 | -47  | Unsupported data node operation           | Unknown node type                        |
+| -48  | Data node creation failure                | Failed to create node value              |
 
 ## Pool/Manager Specific
 | Code | Meaning                  | Example/Description                      |

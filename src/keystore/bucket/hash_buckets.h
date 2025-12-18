@@ -31,14 +31,16 @@ int cleanup_hash_buckets(void);
 hash_bucket* get_hash_bucket(unsigned int index);
 
 /**
- * @fn add_node_to_bucket
- * @brief Adds a data node to the specified hash bucket.
+ * @fn upsert_node_to_bucket
+ * @brief Sets or updates a data node in the hash bucket by key and key hash.
  * @param index Index of the hash bucket.
- * @param key_hash Hash value of the key associated with the node.
- * @param node_ptr Pointer to the data node to add.
- * @return 0 on success, non-zero on failure.
+ * @param key Key string of the node to set.
+ * @param key_hash Hash value of the key.
+ * @param new_value New value to set in the node.
+ * @return 0 on success, negative result if the node was not found or on error.
+ * @note This function checks if the key contains a data node.If the node does not exist, it will be created.
  */
-int add_node_to_bucket(unsigned int index, const char *key, uint32_t key_hash, key_store_value* new_value);
+int upsert_node_to_bucket(unsigned int index, const char *key, uint32_t key_hash, key_store_value* new_value);
 
 /**
  * @fn find_node_in_bucket
@@ -49,18 +51,6 @@ int add_node_to_bucket(unsigned int index, const char *key, uint32_t key_hash, k
  * @return Pointer to the found data node, or NULL if not found.
  */
 int find_node_in_bucket(unsigned int index, const char *key, uint32_t key_hash, key_store_value* value_out);
-
-
-/**
- * @fn edit_node_in_bucket
- * @brief Edits the data of a node in the hash bucket by key and key hash.
- * @param index Index of the hash bucket.
- * @param key Key string of the node to edit.
- * @param key_hash Hash value of the key.
- * @param new_value New value to set in the node.
- * @return 0 on success, -1 if the node was not found or on error.
- */
-int edit_node_in_bucket(unsigned int index, const char *key, uint32_t key_hash, key_store_value* new_value);
 
 /**
  * @fn delete_node_from_bucket

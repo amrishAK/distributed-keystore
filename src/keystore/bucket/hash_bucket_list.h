@@ -4,20 +4,31 @@
 #include "core/type_definition.h"
 #include <stdbool.h>
 
+/**
+ * @fn create_new_list_node
+ * @brief Creates a new list node with the specified key hash and data.
+ *
+ * This function allocates memory for a new list_node, initializes it with the provided
+ * key hash and data node, and sets the next pointer to NULL.
+ *
+ * @param key_hash The hash value of the key to be stored in the new node.
+ * @param data Pointer to the data_node to be associated with the new list node.
+ * @return Pointer to the newly created list_node, or NULL if memory allocation fails.
+ */
+list_node* create_new_list_node(uint32_t key_hash, data_node *data);
 
 /**
  * @fn insert_list_node
  * @brief Inserts a new node into the linked list.
- *
- * This function creates a new list node with the specified key hash and associated data,
- * and inserts it at the appropriate position in the list pointed to by node_header_ptr.
+ * 
+ * This function insserts a new list_node at the head of the linked list
  *
  * @param node_header_ptr Pointer to the head pointer of the linked list.
  * @param key_hash Hash value of the key to be stored in the new node.
- * @param data Pointer to the data node to be associated with the new list node.
+ * @param new_list_node Pointer to the newly created list_node to be inserted.
  * @return int Returns 0 on success, or a negative value on failure.
  */
-int insert_list_node(list_node **node_header_ptr, uint32_t key_hash, data_node *data);
+int insert_list_node(list_node **node_header_ptr, list_node* new_list_node);
 
 /**
  * @fn delete_list_node
@@ -29,10 +40,12 @@ int insert_list_node(list_node **node_header_ptr, uint32_t key_hash, data_node *
  * @param node_header_ptr Pointer to the pointer of the list's head node.
  * @param key The key to search for in the list.
  * @param key_hash The hash value of the key to optimize search.
+ * @param deleted_node_out Pointer to a data_node pointer to receive the deleted node's data.
  * @return int Returns 0 on successful deletion, or a non-zero value if the node was not found.
+ * @note The caller is responsible for managing the memory of the deleted data_node.
  */
 
-int delete_list_node(list_node **node_header_ptr, const char *key, uint32_t key_hash);
+int delete_list_node(list_node **node_header_ptr, const char *key, uint32_t key_hash, data_node **deleted_node_out);
 
 
 /**

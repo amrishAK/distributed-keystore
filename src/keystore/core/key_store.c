@@ -64,14 +64,7 @@ int set_key(const char *key, key_store_value* value)
     int get_hash_result = _get_hash_and_index(key, &key_hash, &index);
     if (get_hash_result != 0) return get_hash_result; // Error handling: failed to get hash and index
 
-    int result = edit_node_in_bucket(index, key, key_hash, value);
-    
-    if(result == -41)
-    {
-        result = add_node_to_bucket(index, key, key_hash, value); // Try to add new node if edit failed due to key not found
-    }
-
-    return result;
+    return upsert_node_to_bucket(index, key, key_hash, value);
 }
 
 
