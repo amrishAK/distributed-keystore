@@ -65,7 +65,8 @@ int soft_delete_data_node(data_node* data_node_ptr) {
 int _create_new_data_node(uint32_t key_hash, key_value_pair* kv_pair, bool is_concurrency_enabled, data_node** new_data_node_out) 
 {
     // Argument validation
-    if (kv_pair == NULL || kv_pair->key == NULL || kv_pair->key[0] == '\0' || kv_pair->value == NULL) return ERR_INVALID_ARGUMENT;
+    if (kv_pair == NULL || new_data_node_out == NULL) return ERR_INVALID_ARGUMENT; 
+    if( kv_pair->key == NULL || kv_pair->key[0] == '\0' || kv_pair->value == NULL) return ERR_INVALID_ARGUMENT;
 
     // Allocation and initialisation
     size_t key_len = strlen(kv_pair->key) + 1;
@@ -91,10 +92,12 @@ int _create_new_data_node(uint32_t key_hash, key_value_pair* kv_pair, bool is_co
 
 int _delete_data_node(data_node *data_node_ptr) {
 
+    
     int result = 0;
-    if (data_node_ptr == NULL) return ERR_INVALID_ARGUMENT; // Handle null pointer, nothing to delete
+    if (data_node_ptr == NULL) return 0; // Handle null pointer, nothing to delete
 
     free_memory(data_node_ptr->data, false);
+    data_node_ptr->data = NULL;
     
     if(data_node_ptr->is_concurrency_enabled){
         result = pthread_mutex_destroy(&data_node_ptr->lock);

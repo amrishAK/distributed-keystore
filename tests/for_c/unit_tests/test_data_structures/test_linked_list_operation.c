@@ -24,8 +24,24 @@
 #include "type_definitions/hash_bucket_type_definition.h"
 #include "type_definitions/error_code_definitions.h"
 #include "type_definitions/stats_type_definitions.h"
+#include "utils/memory_manager.h"
 #include <string.h>
 #include <stdlib.h>
+
+void _initialize_memory_manager_for_tests(void) {
+    memory_manager_config mm_config = {
+        .bucket_size = 8,
+        .sub_bucket_size = 8,
+        .pre_allocation_factor = 1.0,
+        .allocate_list_pool = true,
+        .is_concurrency_enabled = false
+    };
+    initialize_memory_manager(mm_config);
+}
+
+void _cleanup_memory_manager_for_tests(void) {
+    cleanup_memory_manager();
+}
 
 void test_create_new_linked_list_node_success(void) {
     key_value_pair kv = {"key", (unsigned char *)"value", strlen("value")};
@@ -246,6 +262,62 @@ void test_cleanup_deleted_linked_list_nodes_all_deleted(void) {
     TEST_ASSERT_GREATER_OR_EQUAL(2, result);
 }
 
+void test_linked_list_operations_with_memory_manager_initalised(void) {
+    _initialize_memory_manager_for_tests();
+
+    uint32_t key1_hash = 501;
+    uint32_t key2_hash = 402;
+    uint32_t key3_hash = 603;
+    key_value_pair kv1 = {"key", (unsigned char *)"value", strlen("value")};
+    key_value_pair kv2 = {"key2", (unsigned char *)"value2", strlen("value2")};
+    key_value_pair kv3 = {"key3", (unsigned char *)"value3", strlen("value3")};
+
+    linked_list_node *head = NULL;
+    //insert one
+    data_node* data1 = NULL;
+    create_new_data_node(key1_hash, &kv1, false, &data1);
+    linked_list_node* node1 = NULL;
+    int result = create_new_linked_list_node(key1_hash, data1, &node1);
+    TEST_ASSERT_EQUAL(0, result);
+    result = insert_linked_list_node(&head, node1);
+    TEST_ASSERT_EQUAL(0, result);
+
+    //insert two
+    data_node* data2 = NULL;
+    create_new_data_node(key2_hash, &kv2, false, &data2);
+    linked_list_node* node2 = NULL;
+    result = create_new_linked_list_node(key2_hash, data2, &node2);
+    TEST_ASSERT_EQUAL(0, result);
+    result = insert_linked_list_node(&head, node2);
+    TEST_ASSERT_EQUAL(0, result);
+
+    //delete one
+    data_node* out_data = NULL;
+    result = get_data_node_from_linked_list(head, "key", key1_hash, &out_data);
+    TEST_ASSERT_EQUAL(0, result);
+    TEST_ASSERT_EQUAL_PTR(data1, out_data);
+    out_data->is_deleted = true;
+    result = cleanup_deleted_linked_list_nodes(head);
+    TEST_ASSERT_EQUAL(1, result);
+
+    //insert three
+    data_node* data3 = NULL;
+    create_new_data_node(key3_hash, &kv3, false, &data3);
+    linked_list_node* node3 = NULL;
+    result = create_new_linked_list_node(key3_hash, data3, &node3);
+    TEST_ASSERT_EQUAL(0, result);
+    result = insert_linked_list_node(&head, node3);
+    TEST_ASSERT_EQUAL(0, result);
+
+    //cleanup all
+    result = delete_all_linked_list_nodes(head);
+    TEST_ASSERT_EQUAL(0, result);
+    
+    _cleanup_memory_manager_for_tests();
+}
+
+
+
 int test_linked_list_operations_main(void) {
     UNITY_BEGIN();
     printf("Running Linked List Operations Unit Tests...\n");
@@ -268,6 +340,7 @@ int test_linked_list_operations_main(void) {
     RUN_TEST(test_cleanup_deleted_linked_list_nodes_none_deleted);
     RUN_TEST(test_cleanup_deleted_linked_list_nodes_some_deleted);
     RUN_TEST(test_cleanup_deleted_linked_list_nodes_all_deleted);
+    RUN_TEST(test_linked_list_operations_with_memory_manager_initalised);
     printf("Linked List Operations Unit Tests Completed.\n");
     return UNITY_END();
 }
