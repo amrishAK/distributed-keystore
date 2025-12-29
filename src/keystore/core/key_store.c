@@ -3,44 +3,54 @@
 #include <stdio.h>
 #include <time.h>
 #include "key_store.h"
-#include "data_node.h"
-#include "bucket/hash_buckets.h"
-#include "bucket/hash_bucket_list.h"
 #include "hash/hash_functions.h"
 #include "utils/memory_manager.h"
+#include "utils/helper_functions.h"
+#include "hash_table/hash_table_operation.h"
 
 #pragma region Private Global Variables
 static uint32_t g_hash_seed = 0;
-static unsigned int g_bucket_size = 0;
-
+hash_table_memory_pool* g_hash_table_pool = NULL;
 #pragma endregion
 
 
 #pragma region Private Function Declarations
 static uint32_t _generate_hash_seed(void);
-static int _get_bucket_index(uint32_t key_hash);
-static int _get_hash_and_index(const char *key, uint32_t *key_hash_out, unsigned int *index_out);
-
+static int _get_hash_and_index(const char *key, uint32_t *key_hash_out);
 #pragma endregion
 
 #pragma region Public Function Definitions
-int initialise_key_store(unsigned int bucket_size, double pre_memory_allocation_factor, bool is_concurrency_enabled) 
+int initialise_key_store(hash_table_configuration config, double pre_memory_allocation_factor) 
 { 
-    if(bucket_size == 0 || pre_memory_allocation_factor < 0 || pre_memory_allocation_factor > 1) return -21; // Error handling: Invalid parameters
+    if (config.bucket_size == 0 || config.sub_hash_table_block_size == 0  || config.max_linked_list_Chain_length == 0 || pre_memory_allocation_factor < 0.0 || pre_memory_allocation_factor > 1.0) {
+        return -10; // Error handling: invalid configuration
+    }
 
-    int hb_init_result = initialise_hash_buckets(bucket_size, is_concurrency_enabled);
-    if(hb_init_result != 0)  return hb_init_result; // Error handling: Failed to initialize hash buckets
+    if(!is_power_of_two(config.bucket_size) || !is_power_of_two(config.sub_hash_table_block_size)) {
+        return -11; // Error handling: bucket size must be a power of two
+    }
 
-    memory_manager_config config = {bucket_size, pre_memory_allocation_factor, true, false, is_concurrency_enabled};
+    memory_manager_config memory_manager_config = {
+        .bucket_size = config.bucket_size,
+        .sub_bucket_size = config.sub_hash_table_block_size,
+        .pre_allocation_factor = pre_memory_allocation_factor,
+        .allocate_list_pool = true,
+        .is_concurrency_enabled = config.is_concurrency_enabled
+    };
 
-    int memory_init_result = initialize_memory_manager(config);
-    if(memory_init_result != 0) {
-        cleanup_hash_buckets();
-        return memory_init_result; // Error handling: Failed to initialize memory manager
+    int memory_manager_init_result = initialize_memory_manager(memory_manager_config);
+    if (memory_manager_init_result != 0) {
+        return memory_manager_init_result; // Error handling: failed to initialize memory manager
     }
 
     g_hash_seed = _generate_hash_seed();
-    g_bucket_size = bucket_size;
+
+    int hash_buckets_init_result = create_new_hash_table(config, &g_hash_table_pool);
+    if( hash_buckets_init_result != 0) {
+        cleanup_memory_manager();
+        return hash_buckets_init_result; // Error handling: failed to create hash table
+    }
+
     return 0;
 }
 
@@ -54,51 +64,40 @@ int cleanup_key_store(void)
 }
 
 
-int set_key(const char *key, key_store_value* value) 
+int set_key(key_value_pair* value) 
 {
-    if (value == NULL || value->data == NULL || value->data_size == 0 || key == NULL || key[0] == '\0') return -20; // Error handling: invalid input
+    if (value == NULL || value->value == NULL || value->value_size == 0 || value->key == NULL || value->key[0] == '\0') return -20; // Error handling: invalid input
 
     uint32_t key_hash;
-    unsigned int index;
 
-    int get_hash_result = _get_hash_and_index(key, &key_hash, &index);
+    int get_hash_result = _get_hash_and_index(value->key, &key_hash);
     if (get_hash_result != 0) return get_hash_result; // Error handling: failed to get hash and index
-
-    return upsert_node_to_bucket(index, key, key_hash, value);
+    
+    return upsert_node_to_hash_table(g_hash_table_pool, key_hash, value);
 }
 
 
-int get_key(const char *key, key_store_value *value_out) 
+int get_key(const char *key, key_value_pair *value_out) 
 {
-    if (key == NULL || key[0] == '\0') return -20; // Error handling: invalid input
+    if (key == NULL || key[0] == '\0' || value_out == NULL) return -20; // Error handling: invalid input
 
     uint32_t key_hash;
-    unsigned int index;
-   
-    int get_hash_result = _get_hash_and_index(key, &key_hash, &index);
+    int get_hash_result = _get_hash_and_index(key, &key_hash);
     if (get_hash_result != 0) return get_hash_result; // Error handling: failed to get hash and index
 
-    return find_node_in_bucket(index, key, key_hash, value_out);
+    return get_key_value_from_hash_table(g_hash_table_pool, key_hash, key, value_out);
 }
 
 
 int delete_key(const char *key) 
-{    
+{
     if (key == NULL || key[0] == '\0') return -20; // Error handling: invalid input
 
     uint32_t key_hash;
-    unsigned int index;
-    int get_hash_result = _get_hash_and_index(key, &key_hash, &index);
+    int get_hash_result = _get_hash_and_index(key, &key_hash);
     if (get_hash_result != 0) return get_hash_result; // Error handling: failed to get hash and index
 
-    return delete_node_from_bucket(index, key, key_hash);
-}
-
-keystore_stats get_keystore_stats(void) 
-{
-    keystore_stats stats = {0};
-    get_hash_bucket_pool_stats(&stats);
-    return stats;
+    return delete_key_from_hash_table(g_hash_table_pool, key_hash, key);
 }
 
 #pragma endregion
@@ -123,28 +122,6 @@ uint32_t _generate_hash_seed(void)
 
 
 /**
- * @fn get_bucket_index
- * @brief Computes the bucket index for a given key hash.
- *
- * This function uses bitwise AND to map the key_hash to a valid bucket index
- * within the range [0, g_bucket_size - 1]. If the computed index is out of bounds,
- * it returns -1 to indicate an invalid index.
- *
- * @param key_hash The hash value of the key.
- * @return The bucket index corresponding to the key_hash, or -1 if invalid.
- */
-int _get_bucket_index(uint32_t key_hash) 
-{
-    unsigned int index = key_hash & (g_bucket_size - 1);
-
-    if(index >= g_bucket_size) {
-        index = -1;
-    }
-    
-    return index;
-}
-
-/**
  * @fn _get_hash_and_index
  * @brief Generates a random seed for the hash function.
  *
@@ -154,20 +131,15 @@ int _get_bucket_index(uint32_t key_hash)
  *
  * @return A 32-bit unsigned integer representing the generated hash seed.
  */
-int _get_hash_and_index(const char *key, uint32_t *key_hash_out, unsigned int *index_out) 
+int _get_hash_and_index(const char *key, uint32_t *key_hash_out) 
 {
-    if ( key_hash_out == NULL || index_out == NULL) return -20; // Handle error: invalid output pointers
+    if ( key_hash_out == NULL) return -20; // Handle error: invalid output pointers
 
     uint32_t key_hash = hash_function_murmur_32(key, g_hash_seed);
 
     if(key_hash == UINT32_MAX) return -70; // Handle error: hash function failed
-
-    int index = _get_bucket_index(key_hash);
-
-    if(index < 0) return -71; // Handle error: invalid index
-
+    
     *key_hash_out = key_hash;
-    *index_out = (unsigned int)index;
     return 0;
 }
 

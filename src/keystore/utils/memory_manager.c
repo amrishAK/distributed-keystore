@@ -1,10 +1,9 @@
 #include "memory_manager.h"
-#include "core/type_definition.h"
+#include "type_definitions/hash_bucket_type_definition.h"
 #include <math.h>
 
 #pragma region Private Global Variables
 static memory_pool g_list_pool = {0};
-static memory_pool g_tree_pool = {0};
 static memory_manager_config g_config = {0};
 
 #pragma endregion
@@ -27,10 +26,9 @@ int initialize_memory_manager(const memory_manager_config config)
     g_config = config;
     int pool_creation_result = 0;
 
-    if(config.allocate_list_pool)  pool_creation_result = _create_memory_pool(&g_list_pool, sizeof(list_node));
+    if(config.allocate_list_pool)  pool_creation_result = _create_memory_pool(&g_list_pool, sizeof(linked_list_node));
 
-    if(config.allocate_tree_pool)  pool_creation_result = _create_memory_pool(&g_tree_pool, sizeof(tree_node));
-
+    
     if(pool_creation_result != 0) cleanup_memory_manager();
 
     return pool_creation_result;
@@ -42,21 +40,14 @@ int cleanup_memory_manager(void)
 
     if(g_config.allocate_list_pool)  result = _cleanup_memory_pool(&g_list_pool);
 
-    if(g_config.allocate_tree_pool)  result = _cleanup_memory_pool(&g_tree_pool);
-
     g_config = (memory_manager_config){0}; // Reset config
     return result;
 }
 
 
-void* allocate_memory_from_pool(memory_pool_type_t pool_type)
+void* allocate_memory_from_pool()
 {
-    switch(pool_type)
-    {
-        case LIST_POOL: return _allocate_memory_from_pool(&g_list_pool);
-        case TREE_POOL: return _allocate_memory_from_pool(&g_tree_pool);
-        default: return NULL; // Unsupported pool type
-    }
+    return g_list_pool.is_initialized ? _allocate_memory_from_pool(&g_list_pool) : malloc(sizeof(linked_list_node));
 }
 
 void* allocate_memory(size_t size)
@@ -64,13 +55,15 @@ void* allocate_memory(size_t size)
     return malloc(size);
 }
 
-void free_memory(void *ptr, memory_pool_type_t pool_type)
+void free_memory(void *ptr, bool is_pool)
 {
-    switch(pool_type)
+    if(is_pool && g_list_pool.is_initialized)
     {
-        case LIST_POOL: _free_memory_to_pool(&g_list_pool, ptr); break;
-        case TREE_POOL: _free_memory_to_pool(&g_tree_pool, ptr); break;
-        default: free(ptr); // Use standard free for unsupported pool types
+        _free_memory_to_pool(&g_list_pool, ptr);
+    }
+    else
+    {
+        free(ptr);
     }
 }
 

@@ -1,24 +1,21 @@
 #ifndef KEY_STORE_H
 #define KEY_STORE_H
 
-#include "type_definition.h"
+#include "type_definitions/hash_bucket_type_definition.h"
+#include "type_definitions/error_code_definitions.h"
 
 /**
  * @fn initialise_key_store
- * @brief Initializes the key store with the specified bucket size.
+ * @brief Initializes the key store with the specified configuration.
  *
- * This function sets up the key store data structure, allocating resources
- * as needed to support the given number of buckets.
+ * This function sets up the key store with the given hash table configuration
+ * and pre-allocates memory based on the provided factor.
  *
- * @param bucket_size The number of buckets to allocate in the key store.
- * @param pre_memory_allocation_factor A factor (0 to 1) indicating the proportion of memory to pre-allocate for efficiency.
- * @param is_concurrency_enabled Flag to enable or disable concurrency control.
+ * @param config The configuration settings for the hash table.
+ * @param pre_memory_allocation_factor A factor (0.0 to 1.0) indicating the proportion of memory to pre-allocate.
  * @return 0 on success, or a negative error code on failure.
- * 
- * @note The bucket_size must be a power of two. If it is not, the function returns -1 to indicate an error.
- * 
  */
-int initialise_key_store(unsigned int bucket_size,  double pre_memory_allocation_factor, bool is_concurrency_enabled);
+int initialise_key_store(hash_table_configuration config, double pre_memory_allocation_factor);
 
 /**
  * @fn cleanup_key_store
@@ -44,7 +41,7 @@ int cleanup_key_store(void);
  * 
  * @note The caller is responsible for managing the memory of the data pointer in value.
  */
-int set_key(const char *key, key_store_value* value);
+int set_key(key_value_pair* value);
 
 /**
  * @fn get_key
@@ -58,7 +55,7 @@ int set_key(const char *key, key_store_value* value);
  * @return 0 on success, or a negative error code if the key is not found or an error occurs.
  * @note The caller is responsible for managing the memory of the data pointer in value_out.
  */
-int get_key(const char *key, key_store_value* value_out);
+int get_key(const char *key, key_value_pair* value_out);
 
 /**
  * @fn delete_key
@@ -71,15 +68,5 @@ int get_key(const char *key, key_store_value* value_out);
  */
 int delete_key(const char *key);
 
-/**
- * @fn get_keystore_stats
- * @brief Retrieves statistics about the key store.
- *
- * This function gathers various statistics about the key store, including
- * key distribution, memory usage, and operation counts.
- *
- * @return A keystore_stats structure containing the collected statistics.
- */
-keystore_stats get_keystore_stats(void);
 
 #endif // KEY_STORE_H
