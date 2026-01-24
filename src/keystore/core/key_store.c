@@ -22,7 +22,7 @@ static int _get_hash_and_index(const char *key, uint32_t *key_hash_out);
 #pragma region Public Function Definitions
 int initialise_key_store(hash_table_configuration config, double pre_memory_allocation_factor) 
 { 
-    if (config.bucket_size == 0 || config.sub_hash_table_block_size == 0  || config.max_linked_list_Chain_length == 0 || pre_memory_allocation_factor < 0.0 || pre_memory_allocation_factor > 1.0) {
+    if (config.bucket_size == 0 || config.sub_hash_table_block_size == 0  || config.max_linked_list_chain_length == 0 || pre_memory_allocation_factor < 0.0 || pre_memory_allocation_factor > 1.0) {
         return -10; // Error handling: invalid configuration
     }
 

@@ -12,14 +12,14 @@ int _resizing_lock_wrapper_for_hash_bucket_operation(hash_bucket_resizing_operat
 #pragma endregion
 
 
-int initialise_hash_bucket(hash_bucket* hash_bucket_ptr, sub_hash_table_configuration config)
+int initialise_hash_bucket(hash_bucket* hash_bucket_ptr, sub_hash_table_configuration sub_hash_table_config)
 {
     if (hash_bucket_ptr == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
     if(hash_bucket_ptr->is_initialized) return 0; // Already initialized
 
     sub_hash_table_memory_pool* sub_hash_table_ptr = NULL;
-    int init_result = create_new_sub_hash_table(config, true, &sub_hash_table_ptr);
+    int init_result = create_new_sub_hash_table(sub_hash_table_config, true, &sub_hash_table_ptr);
     if (init_result != 0) return  init_result; // Error handling: failed to initialize sub-hash-table
 
     init_result = pthread_mutex_init(&hash_bucket_ptr->resizing_lock, NULL);
@@ -34,7 +34,7 @@ int initialise_hash_bucket(hash_bucket* hash_bucket_ptr, sub_hash_table_configur
     hash_bucket_ptr->node_count = 0;
     hash_bucket_ptr->is_resizing = false;
     hash_bucket_ptr->is_initialized = true;
-    hash_bucket_ptr->config = config;
+    hash_bucket_ptr->sub_hash_table_config = sub_hash_table_config;
     
     return 0;
 }
@@ -75,18 +75,11 @@ int cleanup_hash_bucket(hash_bucket* hash_bucket_ptr)
 
 int upsert_node_to_hash_bucket(hash_bucket* hash_bucket_ptr, uint32_t key_hash, key_value_pair* kv_pair)
 {
-    
-    
     if (hash_bucket_ptr == NULL || kv_pair == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
-    printf("upsert_node_to_hash_bucket:Hash bucket ptr: %p\n", hash_bucket_ptr);
-    printf("upsert_node_to_hash_bucket:Hash bucket ptr initalised: %s\n", hash_bucket_ptr->is_initialized ? "true" : "false");
-    printf("upsert_node_to_hash_bucket:sub_hash_table_ptr: %p\n", hash_bucket_ptr->sub_hash_table_ptr);
     
     if(!hash_bucket_ptr->is_initialized) return ERR_HASH_BUCKET_NOT_INITIALIZED; // Error handling: hash bucket not initialized
-    printf("upsert_node_to_hash_bucket:Proceeding past initialized check\n");
     if(hash_bucket_ptr->sub_hash_table_ptr == NULL) return ERR_SUB_HASH_TABLE_NOT_INITIALIZED; // Error handling: sub-hash-table not initialized
 
-    printf("upsert_node_to_hash_bucket:Proceeding to upsert\n");
     if(!hash_bucket_ptr->is_resizing) {
         return upsert_node_to_sub_hash_table(hash_bucket_ptr->sub_hash_table_ptr, key_hash, kv_pair);
     }

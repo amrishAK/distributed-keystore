@@ -11,7 +11,7 @@ static int _check_for_resize_condition(sub_hash_bucket* sub_hash_bucket_ptr);
 
 #pragma region Public Function Definitions
 
-int initialise_sub_hash_bucket(sub_hash_bucket *sub_hash_bucket_ptr, bool is_concurrency_enabled)
+int initialise_sub_hash_bucket(sub_hash_bucket *sub_hash_bucket_ptr, bool is_concurrency_enabled, unsigned int max_linked_list_chain_length)
 {
     if(sub_hash_bucket_ptr == NULL) return ERR_INVALID_ARGUMENT;
 
@@ -26,6 +26,7 @@ int initialise_sub_hash_bucket(sub_hash_bucket *sub_hash_bucket_ptr, bool is_con
     sub_hash_bucket_ptr->total_node_count = 0;
     sub_hash_bucket_ptr->is_initialized = true;
     sub_hash_bucket_ptr->is_concurrency_enabled = is_concurrency_enabled;
+    sub_hash_bucket_ptr->max_linked_list_chain_length = max_linked_list_chain_length;
 
     return 0;
 }
@@ -223,13 +224,13 @@ int _check_for_resize_condition(sub_hash_bucket* sub_hash_bucket_ptr)
 {
     if(sub_hash_bucket_ptr == NULL) return ERR_INVALID_ARGUMENT;
 
-    if(sub_hash_bucket_ptr->total_node_count <= sub_hash_bucket_ptr->max_linked_list_Chain_length) {
+    if(sub_hash_bucket_ptr->total_node_count <= sub_hash_bucket_ptr->max_linked_list_chain_length) {
         return 0; // No resize needed
     }
 
     // if total_node_count and active_node_count are equal, no soft deleted nodes to reclaim - need to resize
     if(sub_hash_bucket_ptr->active_node_count == sub_hash_bucket_ptr->total_node_count) {
-        return 20; // Indicate that resizing is needed
+        return 21; // Indicate that resizing is needed
     }
 
     // There are soft deleted nodes that can be reclaimed
@@ -243,7 +244,7 @@ int _check_for_resize_condition(sub_hash_bucket* sub_hash_bucket_ptr)
 
     // After cleanup, check if we still need to resize
     if(sub_hash_bucket_ptr->total_node_count >= 12) {
-        return 20; // Indicate that resizing is needed
+        return 22; // Indicate that resizing is needed
     }
 
     return 0; // No resize needed

@@ -19,9 +19,10 @@ typedef struct {
  *
  * @param sub_hash_bucket_ptr Pointer to the sub-hash-bucket to be initialized.
  * @param is_concurrency_enabled Whether to enable concurrency control for the sub-hash-bucket.
+ * @param max_linked_list_chain_length Maximum allowed length of linked list chains in the bucket.
  * @return int Returns 0 on success, or a negative value on failure.
  */
-int initialise_sub_hash_bucket(sub_hash_bucket *sub_hash_bucket_ptr, bool is_concurrency_enabled);
+int initialise_sub_hash_bucket(sub_hash_bucket *sub_hash_bucket_ptr, bool is_concurrency_enabled, unsigned int max_linked_list_chain_length);
 
 /**
  * @fn cleanup_sub_hash_bucket

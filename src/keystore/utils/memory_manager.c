@@ -55,6 +55,12 @@ void* allocate_memory(size_t size)
     return malloc(size);
 }
 
+void* callocate_memory(size_t num, size_t size)
+{
+    return calloc(num, size);
+}
+
+
 void free_memory(void *ptr, bool is_pool)
 {
     if(is_pool && g_list_pool.is_initialized)

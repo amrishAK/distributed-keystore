@@ -134,7 +134,7 @@ int _add_node_to_pending_list(hash_bucket* hash_bucket_ptr, uint32_t key_hash, k
     if (hash_bucket_ptr == NULL || kv_pair == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
     data_node* new_data_node = NULL;
-    int result = create_new_data_node(key_hash, kv_pair, hash_bucket_ptr->config.is_concurrency_enabled, &new_data_node);
+    int result = create_new_data_node(key_hash, kv_pair, hash_bucket_ptr->sub_hash_table_config.is_concurrency_enabled, &new_data_node);
     if (result != SUCCESS) return result; // Error handling: failed to create new data node
     
     // Mark as deleted if it's a delete operation
@@ -162,9 +162,9 @@ int _resize_hash_bucket(void* input_arg)
     hash_bucket* hash_bucket_ptr = (hash_bucket*)input_arg;
     
     sub_hash_table_configuration new_config = {
-        .is_concurrency_enabled = hash_bucket_ptr->config.is_concurrency_enabled,
-        .bucket_size = hash_bucket_ptr->config.bucket_size * 2, // Double the bucket size
-        .max_linked_list_Chain_length = hash_bucket_ptr->config.max_linked_list_Chain_length
+        .is_concurrency_enabled = hash_bucket_ptr->sub_hash_table_config.is_concurrency_enabled,
+        .bucket_size = hash_bucket_ptr->sub_hash_table_config.bucket_size * 2, // Double the bucket size
+        .max_linked_list_chain_length = hash_bucket_ptr->sub_hash_table_config.max_linked_list_chain_length
     };
 
     sub_hash_table_memory_pool* new_sub_hash_table_ptr = NULL;
@@ -252,7 +252,7 @@ int _finalize_hash_bucket_resizing(hash_bucket* hash_bucket_ptr, sub_hash_table_
     //Swap in the new sub-hash-table
     if(new_sub_hash_table_ptr != NULL) {
         hash_bucket_ptr->sub_hash_table_ptr = new_sub_hash_table_ptr;
-        hash_bucket_ptr->config = new_config;
+        hash_bucket_ptr->sub_hash_table_config = new_config;
         if(hash_bucket_ptr->snapshot_sub_hash_table_ptr != NULL) {
             cleanup_sub_hash_table(hash_bucket_ptr->snapshot_sub_hash_table_ptr);
         }

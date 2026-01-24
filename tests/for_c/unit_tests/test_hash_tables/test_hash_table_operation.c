@@ -5,24 +5,26 @@
 #include "utils/memory_manager.h"
 
 void test_create_new_hash_table_should_initialize_and_return_success(void) {
-    hash_table_configuration config = { .bucket_size = 4, .is_concurrency_enabled = false, .sub_hash_table_block_size = 2, .max_linked_list_Chain_length = 3 };
+    hash_table_configuration config = { .bucket_size = 4, .is_concurrency_enabled = false, .sub_hash_table_block_size = 2, .max_linked_list_chain_length = 3 };
     hash_table_memory_pool* table = NULL;
     int result = create_new_hash_table(config, &table);
     TEST_ASSERT_EQUAL_INT(0, result);
     TEST_ASSERT_NOT_NULL(table);
     cleanup_hash_table(table);
+    free_memory(table, false);
 }
 
 void test_cleanup_hash_table_should_return_success_on_valid_table(void) {
-    hash_table_configuration config = { .bucket_size = 2, .is_concurrency_enabled = false, .sub_hash_table_block_size = 1, .max_linked_list_Chain_length = 2 };
+    hash_table_configuration config = { .bucket_size = 2, .is_concurrency_enabled = false, .sub_hash_table_block_size = 1, .max_linked_list_chain_length = 2 };
     hash_table_memory_pool* table = NULL;
     create_new_hash_table(config, &table);
     int result = cleanup_hash_table(table);
     TEST_ASSERT_EQUAL_INT(0, result);
+    free_memory(table, false);
 }
 
 void test_upsert_and_get_key_value_from_hash_table(void) {
-    hash_table_configuration config = { .bucket_size = 2, .is_concurrency_enabled = false, .sub_hash_table_block_size = 1, .max_linked_list_Chain_length = 2 };
+    hash_table_configuration config = { .bucket_size = 2, .is_concurrency_enabled = false, .sub_hash_table_block_size = 1, .max_linked_list_chain_length = 2 };
     hash_table_memory_pool* table = NULL;
     create_new_hash_table(config, &table);
     const char* key = "testkey";
@@ -38,10 +40,11 @@ void test_upsert_and_get_key_value_from_hash_table(void) {
     TEST_ASSERT_EQUAL_STRING(key, out.key);
     TEST_ASSERT_EQUAL_UINT8_ARRAY(value, out.value, out.value_size);
     cleanup_hash_table(table);
+    free_memory(table, false);
 }
 
 void test_delete_key_from_hash_table_should_remove_key(void) {
-    hash_table_configuration config = { .bucket_size = 2, .is_concurrency_enabled = false, .sub_hash_table_block_size = 1, .max_linked_list_Chain_length = 2 };
+    hash_table_configuration config = { .bucket_size = 2, .is_concurrency_enabled = false, .sub_hash_table_block_size = 1, .max_linked_list_chain_length = 2 };
     hash_table_memory_pool* table = NULL;
     create_new_hash_table(config, &table);
     const char* key = "delkey";
@@ -57,38 +60,29 @@ void test_delete_key_from_hash_table_should_remove_key(void) {
     int get_result = get_key_value_from_hash_table(table, key_hash, key, &out);
     TEST_ASSERT_LESS_THAN_INT(0, get_result); // Should not find
     cleanup_hash_table(table);
+    free_memory(table, false);
 }
 
 void test_get_key_value_from_hash_table_should_fail_for_missing_key(void) {
-    hash_table_configuration config = { .bucket_size = 2, .is_concurrency_enabled = false, .sub_hash_table_block_size = 1, .max_linked_list_Chain_length = 2 };
+    hash_table_configuration config = { .bucket_size = 2, .is_concurrency_enabled = false, .sub_hash_table_block_size = 1, .max_linked_list_chain_length = 2 };
     hash_table_memory_pool* table = NULL;
     create_new_hash_table(config, &table);
     key_value_pair out = {0};
     int get_result = get_key_value_from_hash_table(table, 0x11111111, "notfound", &out);
     TEST_ASSERT_LESS_THAN_INT(0, get_result);
     cleanup_hash_table(table);
+    free_memory(table, false);
 }
 
 
 int test_hash_table_operation_main(void) {
-    memory_manager_config mm_config = {
-        .bucket_size = 8,
-        .pre_allocation_factor = 1.0,
-        .allocate_list_pool = false,
-        .is_concurrency_enabled = false
-    };
-    int mm_init_result = initialize_memory_manager(mm_config);
-    TEST_ASSERT_EQUAL_MESSAGE(0, mm_init_result, "Failed to initialize memory manager");
-
     UNITY_BEGIN();
+    printf("Running Hash Table Operation Unit Tests...\n");
     RUN_TEST(test_create_new_hash_table_should_initialize_and_return_success);
     RUN_TEST(test_cleanup_hash_table_should_return_success_on_valid_table);
     RUN_TEST(test_upsert_and_get_key_value_from_hash_table);
     RUN_TEST(test_delete_key_from_hash_table_should_remove_key);
     RUN_TEST(test_get_key_value_from_hash_table_should_fail_for_missing_key);
-    int result = UNITY_END();
-
-    int mm_cleanup_result = cleanup_memory_manager();
-    TEST_ASSERT_EQUAL_MESSAGE(0, mm_cleanup_result, "Failed to cleanup memory manager");
-    return result;
+    printf("Hash Table Operation Unit Tests Completed.\n");
+    return UNITY_END();
 }

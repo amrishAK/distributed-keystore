@@ -21,8 +21,9 @@ int create_new_sub_hash_table(sub_hash_table_configuration config, bool earlyIni
     new_memory_pool_ptr->block_size = sizeof(sub_hash_bucket);
     new_memory_pool_ptr->is_initialized = false;
     new_memory_pool_ptr->total_blocks = config.bucket_size;
+    new_memory_pool_ptr->max_linked_list_chain_length = config.max_linked_list_chain_length;
 
-    new_memory_pool_ptr->sub_hash_buckets_ptr = allocate_memory(config.bucket_size * sizeof(sub_hash_bucket));
+    new_memory_pool_ptr->sub_hash_buckets_ptr = callocate_memory(config.bucket_size, sizeof(sub_hash_bucket));
 
     if (new_memory_pool_ptr->sub_hash_buckets_ptr == NULL)  return ERR_MEMORY_ALLOCATION_FAILED; // Error handling: memory allocation failed  
     new_memory_pool_ptr->is_initialized = true;
@@ -31,7 +32,7 @@ int create_new_sub_hash_table(sub_hash_table_configuration config, bool earlyIni
     int init_result = 0;
     if (config.is_concurrency_enabled || earlyInitialize) {
         for (unsigned int i = 0; i < config.bucket_size; ++i) {
-            init_result = initialise_sub_hash_bucket(&new_memory_pool_ptr->sub_hash_buckets_ptr[i], config.is_concurrency_enabled);
+            init_result = initialise_sub_hash_bucket(&new_memory_pool_ptr->sub_hash_buckets_ptr[i], config.is_concurrency_enabled, config.max_linked_list_chain_length);
             if (init_result != 0) {
                 cleanup_sub_hash_table(new_memory_pool_ptr);
                 return init_result; // Error handling: failed to initialize hash bucket
@@ -134,7 +135,7 @@ int _get_sub_hash_table_bucket(sub_hash_table_memory_pool* sub_hash_table_ptr, u
 
     if(!sub_hash_bucket_ptr->is_initialized)
     {
-        int init_result = initialise_sub_hash_bucket(sub_hash_bucket_ptr, sub_hash_table_ptr->is_concurrency_enabled);
+        int init_result = initialise_sub_hash_bucket(sub_hash_bucket_ptr, sub_hash_table_ptr->is_concurrency_enabled, sub_hash_table_ptr->max_linked_list_chain_length);
         if (init_result != 0) {
             cleanup_sub_hash_bucket(sub_hash_bucket_ptr);
             return init_result;

@@ -3,7 +3,7 @@
 
 #include "type_definitions/hash_bucket_type_definition.h"
 
-int initialise_hash_bucket(hash_bucket* hash_bucket_ptr, sub_hash_table_configuration config);
+int initialise_hash_bucket(hash_bucket* hash_bucket_ptr, sub_hash_table_configuration sub_hash_table_config);
 
 int cleanup_hash_bucket(hash_bucket* hash_bucket_ptr);
 

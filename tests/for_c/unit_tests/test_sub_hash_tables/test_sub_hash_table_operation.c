@@ -29,7 +29,7 @@
 void test_create_new_sub_hash_table_success(void) {
     sub_hash_table_memory_pool *table = NULL;
     
-    int result = create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 8, .max_linked_list_Chain_length = 8}, false, &table);
+    int result = create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 8, .max_linked_list_chain_length = 8}, false, &table);
     TEST_ASSERT_EQUAL(0, result);
     TEST_ASSERT_NOT_NULL(table);
     printf("Created sub-hash-table with %u buckets.\n", table->total_blocks);
@@ -40,13 +40,13 @@ void test_create_new_sub_hash_table_success(void) {
 
 void test_create_new_sub_hash_table_invalid_args(void) {
     printf("Testing create_new_sub_hash_table with invalid arguments...\n");
-    int result = create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 0, .max_linked_list_Chain_length = 8}, false, NULL);
+    int result = create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 0, .max_linked_list_chain_length = 8}, false, NULL);
     TEST_ASSERT_LESS_THAN(0, result);
 }
 
 void test_upsert_and_get_node_sub_hash_table(void) {
     sub_hash_table_memory_pool *table = NULL;
-    create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 8, .max_linked_list_Chain_length = 8}, false, &table);
+    create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 8, .max_linked_list_chain_length = 8}, false, &table);
     unsigned char value[] = "value";
     key_value_pair kv = {"key", value, strlen((char*)value) + 1};
     int upsert_result = upsert_node_to_sub_hash_table(table, 123, &kv);
@@ -64,7 +64,7 @@ void test_upsert_and_get_node_sub_hash_table(void) {
 
 void test_upsert_duplicate_key_sub_hash_table(void) {
     sub_hash_table_memory_pool *table = NULL;
-    create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 8, .max_linked_list_Chain_length = 8}, false, &table);
+    create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 8, .max_linked_list_chain_length = 8}, false, &table);
     
     unsigned char value1[] = "value1";
     unsigned char value2[] = "value2";
@@ -85,7 +85,7 @@ void test_upsert_duplicate_key_sub_hash_table(void) {
 
 void test_delete_key_from_sub_hash_table(void) {
     sub_hash_table_memory_pool *table = NULL;
-    create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 8, .max_linked_list_Chain_length = 8}, false, &table);
+    create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 8, .max_linked_list_chain_length = 8}, false, &table);
     unsigned char value[] = "value";
     key_value_pair kv = {"key", value, strlen((char*)value) + 1};
     upsert_node_to_sub_hash_table(table, 123, &kv);
@@ -100,7 +100,7 @@ void test_delete_key_from_sub_hash_table(void) {
 
 void test_delete_nonexistent_key_sub_hash_table(void) {
     sub_hash_table_memory_pool *table = NULL;
-    create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 8, .max_linked_list_Chain_length = 8}, false, &table);
+    create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 8, .max_linked_list_chain_length = 8}, false, &table);
     int del_result = delete_key_from_sub_hash_table(table, 999, "nope");
     TEST_ASSERT_LESS_THAN(0, del_result);
     cleanup_sub_hash_table(table);
@@ -109,7 +109,7 @@ void test_delete_nonexistent_key_sub_hash_table(void) {
 
 void test_resize_trigger_result_sub_hash_table(void) {
     sub_hash_table_memory_pool *table = NULL;
-    create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 2, .max_linked_list_Chain_length = 2}, false, &table);
+    create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 2, .max_linked_list_chain_length = 2}, false, &table);
     // Insert enough keys to potentially trigger resize (simulate, actual resize logic may vary)
     int resize_triggered = 0;
     for (int i = 0; i < 20; ++i) {
@@ -126,7 +126,7 @@ void test_resize_trigger_result_sub_hash_table(void) {
 
 void test_concurrency_enabled_sub_hash_table(void) {
     sub_hash_table_memory_pool *table = NULL;
-    int result = create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = true, .bucket_size = 8, .max_linked_list_Chain_length = 8}, false, &table);
+    int result = create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = true, .bucket_size = 8, .max_linked_list_chain_length = 8}, false, &table);
     TEST_ASSERT_EQUAL(0, result);
     TEST_ASSERT_NOT_NULL(table);
     cleanup_sub_hash_table(table);
@@ -147,7 +147,7 @@ void test_null_and_invalid_args_sub_hash_table(void) {
 // 2. Edge cases for upsert/get/delete
 void test_upsert_get_delete_edge_cases_sub_hash_table(void) {
     sub_hash_table_memory_pool *table = NULL;
-    create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 8, .max_linked_list_Chain_length = 8}, false, &table);
+    create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 8, .max_linked_list_chain_length = 8}, false, &table);
     // Upsert with empty key
     unsigned char v[] = "v";
     key_value_pair kv_empty = {"", v, 2};
@@ -176,7 +176,7 @@ void test_upsert_get_delete_edge_cases_sub_hash_table(void) {
 // 3. Multiple keys with same hash (simulate collision)
 void test_hash_collision_handling_sub_hash_table(void) {
     sub_hash_table_memory_pool *table = NULL;
-    create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 2, .max_linked_list_Chain_length = 2}, false, &table);
+    create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 2, .max_linked_list_chain_length = 2}, false, &table);
     // Simulate two keys with same hash
     unsigned char v1[] = "v1";
     key_value_pair kv1 = {"A", v1, strlen((char*)v1) + 1};
@@ -199,7 +199,7 @@ void test_hash_collision_handling_sub_hash_table(void) {
 // 4. Cleanup after delete (if API exposes cleanup)
 void test_cleanup_after_delete_sub_hash_table(void) {
     sub_hash_table_memory_pool *table = NULL;
-    create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 4, .max_linked_list_Chain_length = 4}, false, &table);
+    create_new_sub_hash_table((sub_hash_table_configuration){.is_concurrency_enabled = false, .bucket_size = 4, .max_linked_list_chain_length = 4}, false, &table);
     
     unsigned char v[] = "v";
     key_value_pair kv = {"gone", v, 2};

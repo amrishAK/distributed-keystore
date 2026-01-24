@@ -40,13 +40,13 @@ typedef struct{
  * Fields:
  *   - is_concurrency_enabled: Flag to enable or disable concurrency control.
  *   - bucket_size: Number of buckets in the sub-hash-table.
- *   - max_linked_list_Chain_length: Maximum allowed length of linked list chains in buckets (sub hash table will be resized if exceeded).
+ *   - max_linked_list_chain_length: Maximum allowed length of linked list chains in buckets (sub hash table will be resized if exceeded).
  */
 typedef struct
 {
     bool is_concurrency_enabled;
     unsigned int bucket_size;
-    int max_linked_list_Chain_length;
+    unsigned int max_linked_list_chain_length;
 }sub_hash_table_configuration;
 
 
@@ -62,14 +62,14 @@ typedef struct
  *   - bucket_size: Number of buckets in the hash table.
  *   - is_concurrency_enabled: Flag to enable or disable concurrency control.
  *   - sub_hash_table_block_size: Size of each block in the sub-hash-table.
- *   - max_linked_list_Chain_length: Maximum allowed length of linked list chains in buckets (sub hash table will be resized if exceeded).
+ *   - max_linked_list_chain_length: Maximum allowed length of linked list chains in buckets (sub hash table will be resized if exceeded).
  */
 typedef struct
 {
     unsigned int bucket_size;
     bool is_concurrency_enabled;
     unsigned int sub_hash_table_block_size;
-    unsigned int max_linked_list_Chain_length;
+    unsigned int max_linked_list_chain_length;
 } hash_table_configuration;
 
 
@@ -152,7 +152,7 @@ typedef struct
     unsigned int total_node_count;
     bool is_initialized;
     bool is_concurrency_enabled;
-    unsigned int max_linked_list_Chain_length;
+    unsigned int max_linked_list_chain_length;
     pthread_rwlock_t sub_hash_bucket_lock;
 } sub_hash_bucket;
 
@@ -177,7 +177,7 @@ typedef struct
     unsigned int total_blocks;
     bool is_initialized;
     bool is_concurrency_enabled;
-    int max_linked_list_Chain_length;
+    unsigned int max_linked_list_chain_length;
 } sub_hash_table_memory_pool;
 
 #pragma endregion
@@ -209,7 +209,7 @@ typedef struct
     unsigned int node_count;
     bool is_resizing;
     bool is_initialized;
-    sub_hash_table_configuration config;
+    sub_hash_table_configuration sub_hash_table_config;
 } hash_bucket;
 
 
@@ -233,7 +233,7 @@ typedef struct
     unsigned int block_size;
     unsigned int total_blocks;
     bool is_initialized;
-    sub_hash_table_configuration config;
+    sub_hash_table_configuration sub_hash_table_config;
 } hash_table_memory_pool;
 
 #pragma endregion

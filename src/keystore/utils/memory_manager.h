@@ -111,6 +111,16 @@ void* allocate_memory(size_t size);
 
 
 /**
+ * @fn callocate_memory
+ * @brief Allocates and zero-initializes an array of memory blocks.
+ * @param num Number of elements to allocate.
+ * @param size Size of each element in bytes.
+ * @return A pointer to the allocated memory block, or NULL if allocation fails.
+ * @note - It uses standard calloc() internally.
+ */
+void* callocate_memory(size_t num, size_t size);
+
+/**
  * @fn reallocate_memory
  * @brief Reallocates a memory block to a new size.
  * @param ptr Pointer to the existing memory block to be reallocated.

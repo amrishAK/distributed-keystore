@@ -25,23 +25,23 @@ int create_new_hash_table(hash_table_configuration config, hash_table_memory_poo
     hash_table_memory_pool* new_memory_pool_ptr = allocate_memory(sizeof(hash_table_memory_pool));
     if (new_memory_pool_ptr == NULL) return ERR_MEMORY_ALLOCATION_FAILED; // Error handling: memory allocation failed
 
-    new_memory_pool_ptr->hash_buckets_ptr = allocate_memory(config.bucket_size * sizeof(hash_bucket));
+    new_memory_pool_ptr->hash_buckets_ptr = callocate_memory(config.bucket_size, sizeof(hash_bucket));
     if (new_memory_pool_ptr->hash_buckets_ptr == NULL) {
-        free(new_memory_pool_ptr);
+        free_memory(new_memory_pool_ptr, false);
         return ERR_MEMORY_ALLOCATION_FAILED; // Error handling: memory allocation failed  
     }
 
-    sub_hash_table_configuration sub_config = {
+    sub_hash_table_configuration sub_hash_table_config = {
         .bucket_size = config.bucket_size,
         .is_concurrency_enabled = config.is_concurrency_enabled,
-        .max_linked_list_Chain_length = config.max_linked_list_Chain_length
+        .max_linked_list_chain_length = config.max_linked_list_chain_length
     };
 
     if(config.is_concurrency_enabled) {
         // Eager initialization of hash buckets if concurrency is enabled
         int init_result = 0;
         for (unsigned int i = 0; i < config.bucket_size; ++i) {
-            init_result = initialise_hash_bucket(&new_memory_pool_ptr->hash_buckets_ptr[i], sub_config);
+            init_result = initialise_hash_bucket(&new_memory_pool_ptr->hash_buckets_ptr[i], sub_hash_table_config);
             if (init_result != 0) {
                 cleanup_hash_table(new_memory_pool_ptr);
                 return init_result; // Error handling: failed to initialize hash bucket
@@ -52,7 +52,7 @@ int create_new_hash_table(hash_table_configuration config, hash_table_memory_poo
     new_memory_pool_ptr->block_size = sizeof(hash_bucket);
     new_memory_pool_ptr->is_initialized = true;
     new_memory_pool_ptr->total_blocks = config.bucket_size;
-    new_memory_pool_ptr->config = sub_config;
+    new_memory_pool_ptr->sub_hash_table_config = sub_hash_table_config;
 
     *hash_table_out = new_memory_pool_ptr;
     return 0;
@@ -69,7 +69,7 @@ int cleanup_hash_table(hash_table_memory_pool* hash_table_ptr) {
     hash_table_ptr->hash_buckets_ptr = NULL;
     hash_table_ptr->is_initialized = false;
     hash_table_ptr->total_blocks = 0;
-    hash_table_ptr->config = (sub_hash_table_configuration){0};
+    hash_table_ptr->sub_hash_table_config = (sub_hash_table_configuration){0};
     return 0;
 }
 
@@ -79,11 +79,6 @@ int upsert_node_to_hash_table(hash_table_memory_pool* hash_table_ptr, uint32_t k
     hash_bucket* target_hash_bucket;
     int bucket_result = _get_hash_table_bucket(hash_table_ptr, key_hash, &target_hash_bucket);
     if (bucket_result != 0) return bucket_result;
-
-    printf("upsert_node_to_hash_table:Hash bucker result gotten\n%d\n", bucket_result);
-    printf("upsert_node_to_hash_table:Hash bucket ptr: %p\n", target_hash_bucket);
-    printf("upsert_node_to_hash_table:Hash bucket ptr initalized: %s\n", target_hash_bucket->is_initialized ? "true" : "false");
-
 
     return upsert_node_to_hash_bucket(target_hash_bucket, key_hash, kv_pair);
 }
@@ -134,7 +129,7 @@ int _get_hash_table_bucket(hash_table_memory_pool* hash_table_ptr, uint32_t key_
     hash_bucket* hash_bucket_ptr = &hash_table_ptr->hash_buckets_ptr[bucket_index];
     
     if(!hash_bucket_ptr->is_initialized) {
-        int init_result = initialise_hash_bucket(hash_bucket_ptr, hash_table_ptr->config);
+        int init_result = initialise_hash_bucket(hash_bucket_ptr, hash_table_ptr->sub_hash_table_config);
         if (init_result != 0) {
             cleanup_hash_bucket(hash_bucket_ptr);
             return init_result; // Error handling: failed to initialize hash bucket
