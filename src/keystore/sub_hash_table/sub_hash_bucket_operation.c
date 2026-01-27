@@ -62,7 +62,7 @@ int update_node_in_sub_hash_bucket(sub_hash_bucket_operation_args args, key_valu
 
     int result = 0;
     data_node* target_data_node = NULL;
-    result = (args.sub_hash_bucket_ptr->is_concurrency_enabled) ? _lock_wrapper_for_linked_list_node_operation(GET_LL_NODE, args, NULL, &target_data_node) : get_data_node_from_linked_list(args.sub_hash_bucket_ptr->linked_list_head, args.key, args.key_hash, &target_data_node);
+    result = (args.sub_hash_bucket_ptr->is_concurrency_enabled) ? _lock_wrapper_for_linked_list_node_operation(GET_LL_NODE, args, NULL, &target_data_node) : get_data_node_from_linked_list(args.sub_hash_bucket_ptr->linked_list_head, args.key, args.key_hash, false, &target_data_node);
 
     if (result != SUCCESS) return result; // Error handling: node not found
 
@@ -74,6 +74,7 @@ int update_node_in_sub_hash_bucket(sub_hash_bucket_operation_args args, key_valu
 int add_node_to_sub_hash_bucket(sub_hash_bucket_operation_args args, key_value_pair* new_value)
 {
     if(new_value == NULL || args.sub_hash_bucket_ptr == NULL || args.key == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
+    if(new_value->value_size == 0) return ERR_INVALID_ARGUMENT; // Error handling: zero-length value not allowed
 
 
     data_node* new_data_node = NULL;
@@ -106,7 +107,7 @@ int get_key_store_value_from_sub_hash_bucket(sub_hash_bucket_operation_args args
     if(args.sub_hash_bucket_ptr == NULL || args.key == NULL || value_out == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
     data_node* target_data_node = NULL;
-    int result = (args.sub_hash_bucket_ptr->is_concurrency_enabled) ? _lock_wrapper_for_linked_list_node_operation(GET_LL_NODE, args, NULL, &target_data_node) : get_data_node_from_linked_list(args.sub_hash_bucket_ptr->linked_list_head, args.key, args.key_hash, &target_data_node);
+    int result = (args.sub_hash_bucket_ptr->is_concurrency_enabled) ? _lock_wrapper_for_linked_list_node_operation(GET_LL_NODE, args, NULL, &target_data_node) : get_data_node_from_linked_list(args.sub_hash_bucket_ptr->linked_list_head, args.key, args.key_hash, false, &target_data_node);
 
     if (result != SUCCESS) return result; // Error handling: node not found
 
@@ -120,7 +121,7 @@ int delete_key_from_sub_hash_bucket(sub_hash_bucket_operation_args args)
     if(args.sub_hash_bucket_ptr == NULL || args.key == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
     data_node* target_data_node = NULL;
-    int result = (args.sub_hash_bucket_ptr->is_concurrency_enabled) ? _lock_wrapper_for_linked_list_node_operation(GET_LL_NODE, args, NULL, &target_data_node) : get_data_node_from_linked_list(args.sub_hash_bucket_ptr->linked_list_head, args.key, args.key_hash, &target_data_node);
+    int result = (args.sub_hash_bucket_ptr->is_concurrency_enabled) ? _lock_wrapper_for_linked_list_node_operation(GET_LL_NODE, args, NULL, &target_data_node) : get_data_node_from_linked_list(args.sub_hash_bucket_ptr->linked_list_head, args.key, args.key_hash, false, &target_data_node);
 
     if (result != SUCCESS) return result; // Error handling: node not found
 
@@ -172,7 +173,7 @@ int _lock_wrapper_for_linked_list_node_operation(linked_list_node_operation_t op
             result = insert_linked_list_node(&args.sub_hash_bucket_ptr->linked_list_head, new_node);
             break;
         case GET_LL_NODE:
-            result = get_data_node_from_linked_list(args.sub_hash_bucket_ptr->linked_list_head, args.key, args.key_hash, data_node_out);
+            result = get_data_node_from_linked_list(args.sub_hash_bucket_ptr->linked_list_head, args.key, args.key_hash, false, data_node_out);
             break;
         case DELETE_ALL_LL_NODES:
             result = delete_all_linked_list_nodes(args.sub_hash_bucket_ptr->linked_list_head);
@@ -230,7 +231,7 @@ int _check_for_resize_condition(sub_hash_bucket* sub_hash_bucket_ptr)
 
     // if total_node_count and active_node_count are equal, no soft deleted nodes to reclaim - need to resize
     if(sub_hash_bucket_ptr->active_node_count == sub_hash_bucket_ptr->total_node_count) {
-        return 21; // Indicate that resizing is needed
+        return 20; // Indicate that resizing is needed
     }
 
     // There are soft deleted nodes that can be reclaimed
@@ -244,7 +245,7 @@ int _check_for_resize_condition(sub_hash_bucket* sub_hash_bucket_ptr)
 
     // After cleanup, check if we still need to resize
     if(sub_hash_bucket_ptr->total_node_count >= 12) {
-        return 22; // Indicate that resizing is needed
+        return 20; // Indicate that resizing is needed
     }
 
     return 0; // No resize needed

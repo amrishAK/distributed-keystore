@@ -4,6 +4,7 @@
 #include "type_definitions/hash_bucket_type_definition.h"
 #include "type_definitions/error_code_definitions.h"
 #include "type_definitions/stats_type_definitions.h"
+#include "type_definitions/sucess_code_definitions.h"
 
 typedef enum {
     CREATE_NODE,

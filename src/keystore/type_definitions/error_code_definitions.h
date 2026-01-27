@@ -12,8 +12,7 @@
 #define ERROR_CODE_DEFINITIONS_H
 
 
-// General Success/Failure 
-#define SUCCESS 0
+// General Errors
 #define ERR_FAILURE -1
 
 // Argument/Validation Errors

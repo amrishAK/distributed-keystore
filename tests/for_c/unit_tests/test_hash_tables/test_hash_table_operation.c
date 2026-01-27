@@ -32,7 +32,6 @@ void test_upsert_and_get_key_value_from_hash_table(void) {
     key_value_pair kv = { .key = (char*)key, .value = value, .value_size = sizeof(value) };
     uint32_t key_hash = 0x12345678;
     int upsert_result = upsert_node_to_hash_table(table, key_hash, &kv);
-    printf("Upsert Result: %d\n", upsert_result);
     TEST_ASSERT_TRUE(upsert_result == 0 || upsert_result == 10);
     key_value_pair out = {0};
     int get_result = get_key_value_from_hash_table(table, key_hash, key, &out);
@@ -52,7 +51,6 @@ void test_delete_key_from_hash_table_should_remove_key(void) {
     key_value_pair kv = { .key = (char*)key, .value = value, .value_size = sizeof(value) };
     uint32_t key_hash = 0x87654321;
     int result = upsert_node_to_hash_table(table, key_hash, &kv);
-    printf("Upsert Result: %d\n", result);
     TEST_ASSERT_TRUE(result == 0 || result == 10);
     int del_result = delete_key_from_hash_table(table, key_hash, key);
     TEST_ASSERT_EQUAL_INT(0, del_result);

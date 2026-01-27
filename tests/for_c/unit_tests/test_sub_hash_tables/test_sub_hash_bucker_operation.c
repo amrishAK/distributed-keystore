@@ -251,6 +251,7 @@ void test_delete_sub_hash_bucket_node_twice(void) {
 
 void test_create_sub_hash_bucket_node_with_zero_length_value(void) {
     sub_hash_bucket bucket;
+    bucket.max_linked_list_chain_length = 4;
     initialise_sub_hash_bucket(&bucket, false, 4);
 
     //create node with zero-length value
@@ -258,15 +259,61 @@ void test_create_sub_hash_bucket_node_with_zero_length_value(void) {
     key_value_pair kv = {"key", value, 0};
     sub_hash_bucket_operation_args args = {&bucket, "key", 55};
     int result = add_node_to_sub_hash_bucket(args, &kv);
-    TEST_ASSERT_TRUE(result == 0 || result == 20);
+    TEST_ASSERT_LESS_THAN(0, result);
 
-    //retrieve and verify
-    key_value_pair out = {0};
-    int get_result = get_key_store_value_from_sub_hash_bucket(args, &out);
-    TEST_ASSERT_EQUAL(0, get_result);
-    TEST_ASSERT_EQUAL_STRING("key", out.key);
-    TEST_ASSERT_EQUAL(0, out.value_size);
+    cleanup_sub_hash_bucket(&bucket);
+}
 
+void test_double_initialise_and_cleanup_sub_hash_bucket(void) {
+    sub_hash_bucket bucket;
+    initialise_sub_hash_bucket(&bucket, false, 4);
+    int res2 = initialise_sub_hash_bucket(&bucket, false, 4); // should return 0 if already initialized
+    TEST_ASSERT_EQUAL(0, res2);
+    cleanup_sub_hash_bucket(&bucket);
+    int res4 = cleanup_sub_hash_bucket(&bucket); // Should return 0 even if already cleaned up
+    TEST_ASSERT_EQUAL(0, res4);
+}
+
+void test_add_node_with_null_key(void) {
+    sub_hash_bucket bucket;
+    initialise_sub_hash_bucket(&bucket, false, 4);
+    unsigned char value[] = "value";
+    key_value_pair kv = {NULL, value, strlen((char*)value) + 1};
+    sub_hash_bucket_operation_args args = {&bucket, NULL, 123};
+    int res = add_node_to_sub_hash_bucket(args, &kv);
+    TEST_ASSERT_LESS_THAN(0, res);
+    cleanup_sub_hash_bucket(&bucket);
+}
+
+void test_add_node_with_empty_key(void) {
+    sub_hash_bucket bucket;
+    initialise_sub_hash_bucket(&bucket, false, 4);
+    unsigned char value[] = "value";
+    key_value_pair kv = {"", value, strlen((char*)value) + 1};
+    sub_hash_bucket_operation_args args = {&bucket, "", 123};
+    int res = add_node_to_sub_hash_bucket(args, &kv);
+    TEST_ASSERT_LESS_THAN(0, res); // Or whatever is expected
+    cleanup_sub_hash_bucket(&bucket);
+}
+
+void test_add_nodes_until_triggering_resize(void) {
+    sub_hash_bucket bucket;
+    initialise_sub_hash_bucket(&bucket, false, 2); // Small bucket for test
+    unsigned char v1[] = "v1";
+    unsigned char v2[] = "v2";
+    unsigned char v3[] = "v3";
+    key_value_pair kv1 = {"a", v1, strlen((char*)v1) + 1};
+    key_value_pair kv2 = {"b", v2, strlen((char*)v2) + 1};
+    key_value_pair kv3 = {"c", v3, strlen((char*)v3) + 1};
+    sub_hash_bucket_operation_args args1 = {&bucket, "a", 1};
+    sub_hash_bucket_operation_args args2 = {&bucket, "b", 2};
+    sub_hash_bucket_operation_args args3 = {&bucket, "c", 3};
+    int r1 = add_node_to_sub_hash_bucket(args1, &kv1);
+    int r2 = add_node_to_sub_hash_bucket(args2, &kv2);
+    int r3 = add_node_to_sub_hash_bucket(args3, &kv3); // Should fail if full
+    TEST_ASSERT_EQUAL(0, r1);
+    TEST_ASSERT_EQUAL(0, r2);
+    TEST_ASSERT_EQUAL(20, r3);
     cleanup_sub_hash_bucket(&bucket);
 }
 
@@ -285,6 +332,14 @@ int test_sub_hash_bucket_operation_main(void) {
     RUN_TEST(test_multiple_nodes_chain_sub_hash_bucket);
     RUN_TEST(test_update_delete_get_after_sub_hash_bucket_cleanup);
     RUN_TEST(test_repeated_add_update_delete_same_key_sub_hash_bucket);
+    RUN_TEST(test_edit_sub_hash_bucket_node_after_deletion);
+    RUN_TEST(test_read_sub_hash_bucket_node_after_deletion);
+    RUN_TEST(test_delete_sub_hash_bucket_node_twice);
+    RUN_TEST(test_create_sub_hash_bucket_node_with_zero_length_value);
+    RUN_TEST(test_double_initialise_and_cleanup_sub_hash_bucket);
+    RUN_TEST(test_add_node_with_null_key);
+    RUN_TEST(test_add_node_with_empty_key);
+    RUN_TEST(test_add_nodes_until_triggering_resize);
     printf("Sub Hash Bucket Operation Unit Tests Completed.\n");
     return UNITY_END();
 }

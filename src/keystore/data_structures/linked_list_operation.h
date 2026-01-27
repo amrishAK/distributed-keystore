@@ -49,10 +49,11 @@ int insert_linked_list_node(linked_list_node **node_header_ptr, linked_list_node
  * @param node_header_ptr Pointer to the head of the linked list.
  * @param key The key to search for in the list.
  * @param key_hash The hash value of the key to optimize search.
+ * @param include_soft_deleted Boolean flag indicating whether to include soft-deleted nodes in the search.
  * @param data_node_out Pointer to a data_node pointer to receive the found node's data.
  * @return int Returns 0 on success, or a non-zero value if the node was not found or error occurs. 
  **/
-int get_data_node_from_linked_list(linked_list_node *node_header_ptr, const char *key, uint32_t key_hash, data_node **data_node_out);
+int get_data_node_from_linked_list(linked_list_node *node_header_ptr, const char *key, uint32_t key_hash, bool include_soft_deleted, data_node **data_node_out);
 
 
 /**

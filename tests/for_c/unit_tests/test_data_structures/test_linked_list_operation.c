@@ -124,7 +124,7 @@ void test_get_data_node_from_linked_list_success(void) {
     create_new_linked_list_node(123, data, &node);
     linked_list_node *head = node;
     data_node *out = NULL;
-    int result = get_data_node_from_linked_list(head, "key", 123, &out);
+    int result = get_data_node_from_linked_list(head, "key", 123, false, &out);
     TEST_ASSERT_EQUAL(0, result);
     TEST_ASSERT_EQUAL_PTR(data, out);
     delete_data_node(data);
@@ -134,14 +134,14 @@ void test_get_data_node_from_linked_list_success(void) {
 void test_get_data_node_from_linked_list_not_found(void) {
     linked_list_node *head = NULL;
     data_node *out = NULL;
-    int result = get_data_node_from_linked_list(head, "notfound", 999, &out);
+    int result = get_data_node_from_linked_list(head, "notfound", 999, false, &out);
     TEST_ASSERT_NOT_EQUAL(0, result);
     TEST_ASSERT_NULL(out);
 }
 
 void test_get_data_node_from_linked_list_null_head(void) {
     data_node *out = NULL;
-    int result = get_data_node_from_linked_list(NULL, "key", 123, &out);
+    int result = get_data_node_from_linked_list(NULL, "key", 123, false, &out);
     TEST_ASSERT_NOT_EQUAL(0, result);
     TEST_ASSERT_NULL(out);
 }
@@ -154,7 +154,7 @@ void test_get_data_node_from_linked_list_null_key(void) {
     create_new_linked_list_node(123, data, &node);
     linked_list_node *head = node;
     data_node *out = NULL;
-    int result = get_data_node_from_linked_list(head, NULL, 123, &out);
+    int result = get_data_node_from_linked_list(head, NULL, 123, false, &out);
     TEST_ASSERT_NOT_EQUAL(0, result);
     TEST_ASSERT_NULL(out);
     delete_data_node(data);
@@ -168,7 +168,7 @@ void test_get_data_node_from_linked_list_null_out(void) {
     linked_list_node *node = NULL;
     create_new_linked_list_node(123, data, &node);
     linked_list_node *head = node;
-    int result = get_data_node_from_linked_list(head, "key", 123, NULL);
+    int result = get_data_node_from_linked_list(head, "key", 123, false, NULL);
     TEST_ASSERT_NOT_EQUAL(0, result);
     delete_data_node(data);
     free(node);
@@ -189,7 +189,7 @@ void test_get_data_node_from_linked_list_multiple_nodes(void) {
     insert_linked_list_node(&head, node1);
     insert_linked_list_node(&head, node2);
     data_node *out = NULL;
-    int result = get_data_node_from_linked_list(head, "key1", 111, &out);
+    int result = get_data_node_from_linked_list(head, "key1", 111, false, &out);
     TEST_ASSERT_EQUAL(0, result);
     TEST_ASSERT_EQUAL_PTR(data1, out);
     delete_all_linked_list_nodes(head);
@@ -293,7 +293,7 @@ void test_linked_list_operations_with_memory_manager_initalised(void) {
 
     //delete one
     data_node* out_data = NULL;
-    result = get_data_node_from_linked_list(head, "key", key1_hash, &out_data);
+    result = get_data_node_from_linked_list(head, "key", key1_hash, false, &out_data);
     TEST_ASSERT_EQUAL(0, result);
     TEST_ASSERT_EQUAL_PTR(data1, out_data);
     out_data->is_deleted = true;

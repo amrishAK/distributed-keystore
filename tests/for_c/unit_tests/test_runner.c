@@ -5,6 +5,7 @@
 #include "test_sub_hash_tables/test_sub_hash_bucker_operation.c"
 #include "test_hash_tables/test_hash_bucket_operation.c"
 #include "test_hash_tables/test_hash_table_operation.c"
+#include "test_hash_tables/test_dynamic_resizing.c"
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -17,6 +18,7 @@ int main(void) {
     result = test_sub_hash_table_operation_main();
     result = test_hash_bucket_operation_main();
     result = test_hash_table_operation_main();
+    result = test_dynamic_resizing_main();
     return result;
 }
 

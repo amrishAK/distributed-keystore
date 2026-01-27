@@ -75,18 +75,32 @@ int cleanup_hash_bucket(hash_bucket* hash_bucket_ptr)
 
 int upsert_node_to_hash_bucket(hash_bucket* hash_bucket_ptr, uint32_t key_hash, key_value_pair* kv_pair)
 {
+    int result = 0;
     if (hash_bucket_ptr == NULL || kv_pair == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
     
     if(!hash_bucket_ptr->is_initialized) return ERR_HASH_BUCKET_NOT_INITIALIZED; // Error handling: hash bucket not initialized
-    if(hash_bucket_ptr->sub_hash_table_ptr == NULL) return ERR_SUB_HASH_TABLE_NOT_INITIALIZED; // Error handling: sub-hash-table not initialized
 
     if(!hash_bucket_ptr->is_resizing) {
-        return upsert_node_to_sub_hash_table(hash_bucket_ptr->sub_hash_table_ptr, key_hash, kv_pair);
+        
+        if(hash_bucket_ptr->sub_hash_table_ptr == NULL) return ERR_SUB_HASH_TABLE_NOT_INITIALIZED; // Error handling: sub-hash-table not initialized
+        
+        result = upsert_node_to_sub_hash_table(hash_bucket_ptr->sub_hash_table_ptr, key_hash, kv_pair);
     }
     else
     {
-        return _resizing_lock_wrapper_for_hash_bucket_operation(RESIZE_UPSERT_NODE, hash_bucket_ptr, NULL, key_hash, kv_pair);
+        result = _resizing_lock_wrapper_for_hash_bucket_operation(RESIZE_UPSERT_NODE, hash_bucket_ptr, NULL, key_hash, kv_pair);
     }
+
+    if(result == 20)
+    {   
+        int re_result = _resizing_lock_wrapper_for_hash_bucket_operation(RESIZE_INITIALIZE, hash_bucket_ptr, NULL, 0, NULL);
+
+        if(re_result != SUCCESS) {
+            return re_result; // Propagate error
+        }
+    }
+    
+    return result;
 }
 
 int get_key_value_from_hash_bucket(hash_bucket* hash_bucket_ptr, const char* key, uint32_t key_hash, key_value_pair* kv_pair_out)
@@ -94,9 +108,9 @@ int get_key_value_from_hash_bucket(hash_bucket* hash_bucket_ptr, const char* key
     if (hash_bucket_ptr == NULL || kv_pair_out == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
     if(!hash_bucket_ptr->is_initialized) return ERR_HASH_BUCKET_NOT_INITIALIZED; // Error handling: hash bucket not initialized
-    if(hash_bucket_ptr->sub_hash_table_ptr == NULL) return ERR_SUB_HASH_TABLE_NOT_INITIALIZED; // Error handling: sub-hash-table not initialized
-
+    
     if(!hash_bucket_ptr->is_resizing) {
+        if(hash_bucket_ptr->sub_hash_table_ptr == NULL) return ERR_SUB_HASH_TABLE_NOT_INITIALIZED; // Error handling: sub-hash-table not initialized
         return get_key_store_value_from_sub_hash_table(hash_bucket_ptr->sub_hash_table_ptr, key_hash, key, kv_pair_out);
     }
     else
@@ -110,9 +124,9 @@ int delete_key_from_hash_bucket(hash_bucket* hash_bucket_ptr, const char* key, u
     if (hash_bucket_ptr == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
     if(!hash_bucket_ptr->is_initialized) return ERR_HASH_BUCKET_NOT_INITIALIZED; // Error handling: hash bucket not initialized
-    if(hash_bucket_ptr->sub_hash_table_ptr == NULL) return ERR_SUB_HASH_TABLE_NOT_INITIALIZED; // Error handling: sub-hash-table not initialized
 
     if(!hash_bucket_ptr->is_resizing) {
+        if(hash_bucket_ptr->sub_hash_table_ptr == NULL) return ERR_SUB_HASH_TABLE_NOT_INITIALIZED; // Error handling: sub-hash-table not initialized
         return delete_key_from_sub_hash_table(hash_bucket_ptr->sub_hash_table_ptr, key_hash, key);
     }
     else
@@ -127,7 +141,6 @@ int _resizing_lock_wrapper_for_hash_bucket_operation(hash_bucket_resizing_operat
 {
     int lock_result = pthread_mutex_lock(&hash_bucket_ptr->resizing_lock);
     if (lock_result != 0) return ERR_MUTEX_LOCK_ACQUIRE_FAILED; // Error handling: failed to acquire lock
-
     int result = 0;
     switch(operation_type) {
         case RESIZE_INITIALIZE:
