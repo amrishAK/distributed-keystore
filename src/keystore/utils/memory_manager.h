@@ -30,6 +30,8 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include "type_definitions/error_code_definitions.h"
+#include "type_definitions/sucess_code_definitions.h"
 
 /**
  * @struct memory_pool

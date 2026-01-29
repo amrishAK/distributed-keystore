@@ -29,7 +29,7 @@ TEST_SRC  = $(TEST_DIR)/test_runner.c
 KEYSTORE_SUBDIRS := $(shell ls -d $(KEYSTORE_DIR)/*/ 2>/dev/null | xargs -n1 basename)
 
 # List of .c files to exclude from build (space-separated, relative to KEYSTORE_DIR)
-KEYSTORE_EXCLUDE = bucket/%.c core/%.c
+KEYSTORE_EXCLUDE = bucket/%.c
 
 # Collect all .c files from detected subdirectories, then filter out excluded files
 KEYSTORE_SRC := $(filter-out $(addprefix $(KEYSTORE_DIR)/,$(KEYSTORE_EXCLUDE)), \

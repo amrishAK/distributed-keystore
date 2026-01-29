@@ -16,23 +16,21 @@ hash_table_memory_pool* g_hash_table_pool = NULL;
 
 #pragma region Private Function Declarations
 static uint32_t _generate_hash_seed(void);
-static int _get_hash_and_index(const char *key, uint32_t *key_hash_out);
+static int _get_key_hash(const char *key, uint32_t *key_hash_out);
 #pragma endregion
 
 #pragma region Public Function Definitions
 int initialise_key_store(hash_table_configuration config, double pre_memory_allocation_factor) 
 { 
-    if (config.bucket_size == 0 || config.sub_hash_table_block_size == 0  || config.max_linked_list_chain_length == 0 || pre_memory_allocation_factor < 0.0 || pre_memory_allocation_factor > 1.0) {
-        return -10; // Error handling: invalid configuration
-    }
+    if(pre_memory_allocation_factor < 0.0 || pre_memory_allocation_factor > 1.0) return ERR_INVALID_ARGUMENT; // Error handling: invalid pre-allocation factor
 
-    if(!is_power_of_two(config.bucket_size) || !is_power_of_two(config.sub_hash_table_block_size)) {
-        return -11; // Error handling: bucket size must be a power of two
-    }
+    if (config.bucket_size == 0 || config.sub_hash_table_bucket_size == 0  || config.max_linked_list_chain_length == 0)  return ERR_INVALID_CONFIG; // Error handling: invalid configuration
+
+    if(!is_power_of_two(config.bucket_size) || !is_power_of_two(config.sub_hash_table_bucket_size)) return ERR_INVALID_CONFIG; // Error handling: bucket size must be a power of two
 
     memory_manager_config memory_manager_config = {
         .bucket_size = config.bucket_size,
-        .sub_bucket_size = config.sub_hash_table_block_size,
+        .sub_bucket_size = config.sub_hash_table_bucket_size,
         .pre_allocation_factor = pre_memory_allocation_factor,
         .allocate_list_pool = true,
         .is_concurrency_enabled = config.is_concurrency_enabled
@@ -51,27 +49,27 @@ int initialise_key_store(hash_table_configuration config, double pre_memory_allo
         return hash_buckets_init_result; // Error handling: failed to create hash table
     }
 
-    return 0;
+    return SUCCESS; // Success
 }
 
 
 int cleanup_key_store(void) 
 {
-    cleanup_hash_buckets();
+    cleanup_hash_table(g_hash_table_pool);
     cleanup_memory_manager();
     g_hash_seed = 0;
-    return 0;
+    return SUCCESS; // Success
 }
 
 
 int set_key(key_value_pair* value) 
 {
-    if (value == NULL || value->value == NULL || value->value_size == 0 || value->key == NULL || value->key[0] == '\0') return -20; // Error handling: invalid input
+    if (value == NULL || value->value == NULL || value->value_size == 0 || value->key == NULL || value->key[0] == '\0') return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
     uint32_t key_hash;
 
-    int get_hash_result = _get_hash_and_index(value->key, &key_hash);
-    if (get_hash_result != 0) return get_hash_result; // Error handling: failed to get hash and index
+    int get_key_hash_result = _get_key_hash(value->key, &key_hash);
+    if (get_key_hash_result != 0) return get_key_hash_result; // Error handling: failed to get hash and index
     
     return upsert_node_to_hash_table(g_hash_table_pool, key_hash, value);
 }
@@ -79,10 +77,10 @@ int set_key(key_value_pair* value)
 
 int get_key(const char *key, key_value_pair *value_out) 
 {
-    if (key == NULL || key[0] == '\0' || value_out == NULL) return -20; // Error handling: invalid input
+    if (key == NULL || key[0] == '\0' || value_out == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
     uint32_t key_hash;
-    int get_hash_result = _get_hash_and_index(key, &key_hash);
+    int get_hash_result = _get_key_hash(key, &key_hash);
     if (get_hash_result != 0) return get_hash_result; // Error handling: failed to get hash and index
 
     return get_key_value_from_hash_table(g_hash_table_pool, key_hash, key, value_out);
@@ -91,10 +89,10 @@ int get_key(const char *key, key_value_pair *value_out)
 
 int delete_key(const char *key) 
 {
-    if (key == NULL || key[0] == '\0') return -20; // Error handling: invalid input
+    if (key == NULL || key[0] == '\0') return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
     uint32_t key_hash;
-    int get_hash_result = _get_hash_and_index(key, &key_hash);
+    int get_hash_result = _get_key_hash(key, &key_hash);
     if (get_hash_result != 0) return get_hash_result; // Error handling: failed to get hash and index
 
     return delete_key_from_hash_table(g_hash_table_pool, key_hash, key);
@@ -122,7 +120,7 @@ uint32_t _generate_hash_seed(void)
 
 
 /**
- * @fn _get_hash_and_index
+ * @fn _get_key_hash
  * @brief Generates a random seed for the hash function.
  *
  * This function generates a random seed based on the current time.
@@ -131,16 +129,16 @@ uint32_t _generate_hash_seed(void)
  *
  * @return A 32-bit unsigned integer representing the generated hash seed.
  */
-int _get_hash_and_index(const char *key, uint32_t *key_hash_out) 
+int _get_key_hash(const char *key, uint32_t *key_hash_out) 
 {
-    if ( key_hash_out == NULL) return -20; // Handle error: invalid output pointers
+    if ( key_hash_out == NULL) return ERR_INVALID_ARGUMENT; // Handle error: invalid output pointers
 
     uint32_t key_hash = hash_function_murmur_32(key, g_hash_seed);
 
-    if(key_hash == UINT32_MAX) return -70; // Handle error: hash function failed
+    if(key_hash == UINT32_MAX) return ERR_HASH_COMPUTE_FAILED; // Handle error: hash function failed
     
     *key_hash_out = key_hash;
-    return 0;
+    return SUCCESS; // Success
 }
 
 #pragma endregion

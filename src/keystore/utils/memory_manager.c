@@ -21,7 +21,7 @@ static int _cleanup_memory_pool(memory_pool *pool);
 #pragma region Public Function Definitions
 int initialize_memory_manager(const memory_manager_config config)
 {
-    if(config.bucket_size == 0 || config.pre_allocation_factor <= 0 || config.pre_allocation_factor > 1) return -21; // Invalid configuration parameters error
+    if(config.bucket_size == 0 || config.pre_allocation_factor <= 0 || config.pre_allocation_factor > 1) return ERR_INVALID_CONFIG; // Invalid configuration parameters error
 
     g_config = config;
     int pool_creation_result = 0;
@@ -108,7 +108,7 @@ void* reallocate_memory(void *ptr, size_t new_size)
  */
 int _create_memory_pool(memory_pool *pool, size_t block_size)
 {
-    if(pool == NULL || block_size == 0 || g_config.pre_allocation_factor < 0) return -21; // Invalid parameters error
+    if(pool == NULL || block_size == 0 || g_config.pre_allocation_factor < 0) return ERR_INVALID_ARGUMENT; // Invalid parameters error
 
     if(g_config.pre_allocation_factor == 0) return 0; // No pre-allocation requested
 
@@ -120,12 +120,12 @@ int _create_memory_pool(memory_pool *pool, size_t block_size)
     
     if(g_config.is_concurrency_enabled) 
     {
-        if(pthread_mutex_init(&pool->pool_lock, NULL) != 0) return -11; // Mutex initialization failed
+        if(pthread_mutex_init(&pool->pool_lock, NULL) != 0) return ERR_RESOURCE_INIT_FAILED; // Mutex initialization failed
     }
 
     // Allocate memory for the pool
     pool->next_block_ptr = malloc(block_size * pool->total_blocks);
-    if(pool->next_block_ptr == NULL) return -10; // Memory allocation failed
+    if(pool->next_block_ptr == NULL) return ERR_MEMORY_ALLOCATION_FAILED; // Memory allocation failed
 
     // Allocate memory for the free block list
     pool->free_block_list = (void **)malloc(sizeof(void *) * pool->total_blocks);
@@ -133,7 +133,7 @@ int _create_memory_pool(memory_pool *pool, size_t block_size)
     {
         free(pool->next_block_ptr);
         pool->next_block_ptr = NULL;
-        return -10; // Memory allocation failed
+        return ERR_MEMORY_ALLOCATION_FAILED; // Memory allocation failed
     }
 
     pool->pool_start_ptr = (char *)pool->next_block_ptr;
@@ -141,7 +141,7 @@ int _create_memory_pool(memory_pool *pool, size_t block_size)
     pool->is_initialized = true;
 
 
-    return 0; // Success
+    return SUCCESS; // Success
 }
 
 
@@ -258,9 +258,9 @@ bool _is_pointer_from_pool (memory_pool *pool, void *ptr) {
  */
 int _cleanup_memory_pool(memory_pool *pool)
 {
-    if(pool == NULL) return -20; // Invalid parameter
+    if(pool == NULL) return ERR_INVALID_ARGUMENT; // Invalid parameter
 
-    if(!pool->is_initialized) return 0; // Nothing to clean up
+    if(!pool->is_initialized) return SUCCESS; // Nothing to clean up
 
     if(pool->pool_start_ptr != NULL)
     {
@@ -284,7 +284,7 @@ int _cleanup_memory_pool(memory_pool *pool)
 
     if(g_config.is_concurrency_enabled) pthread_mutex_destroy(&pool->pool_lock);
 
-    return 0; // Success
+    return SUCCESS; // Success
 }
 
 #pragma endregion

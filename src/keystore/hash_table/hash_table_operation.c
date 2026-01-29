@@ -18,9 +18,7 @@ int create_new_hash_table(hash_table_configuration config, hash_table_memory_poo
         return ERR_INVALID_CONFIG; // Error handling: bucket_size must be a power of two and greater than 0
     }
 
-    if (*hash_table_out != NULL) {
-        return ERR_INVALID_ARGUMENT; // Error handling: output pointer must be NULL
-    }
+    if(hash_table_out == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid output pointer
 
     hash_table_memory_pool* new_memory_pool_ptr = allocate_memory(sizeof(hash_table_memory_pool));
     if (new_memory_pool_ptr == NULL) return ERR_MEMORY_ALLOCATION_FAILED; // Error handling: memory allocation failed
@@ -32,7 +30,7 @@ int create_new_hash_table(hash_table_configuration config, hash_table_memory_poo
     }
 
     sub_hash_table_configuration sub_hash_table_config = {
-        .bucket_size = config.sub_hash_table_block_size,
+        .bucket_size = config.sub_hash_table_bucket_size,
         .is_concurrency_enabled = config.is_concurrency_enabled,
         .max_linked_list_chain_length = config.max_linked_list_chain_length
     };

@@ -5,7 +5,7 @@
 #include "utils/memory_manager.h"
 
 void test_create_new_hash_table_should_initialize_and_return_success(void) {
-    hash_table_configuration config = { .bucket_size = 4, .is_concurrency_enabled = false, .sub_hash_table_block_size = 2, .max_linked_list_chain_length = 3 };
+    hash_table_configuration config = { .bucket_size = 4, .is_concurrency_enabled = false, .sub_hash_table_bucket_size = 2, .max_linked_list_chain_length = 3 };
     hash_table_memory_pool* table = NULL;
     int result = create_new_hash_table(config, &table);
     TEST_ASSERT_EQUAL_INT(0, result);
@@ -15,7 +15,7 @@ void test_create_new_hash_table_should_initialize_and_return_success(void) {
 }
 
 void test_cleanup_hash_table_should_return_success_on_valid_table(void) {
-    hash_table_configuration config = { .bucket_size = 2, .is_concurrency_enabled = false, .sub_hash_table_block_size = 1, .max_linked_list_chain_length = 2 };
+    hash_table_configuration config = { .bucket_size = 2, .is_concurrency_enabled = false, .sub_hash_table_bucket_size = 1, .max_linked_list_chain_length = 2 };
     hash_table_memory_pool* table = NULL;
     create_new_hash_table(config, &table);
     int result = cleanup_hash_table(table);
@@ -24,7 +24,7 @@ void test_cleanup_hash_table_should_return_success_on_valid_table(void) {
 }
 
 void test_upsert_and_get_key_value_from_hash_table(void) {
-    hash_table_configuration config = { .bucket_size = 2, .is_concurrency_enabled = false, .sub_hash_table_block_size = 1, .max_linked_list_chain_length = 2 };
+    hash_table_configuration config = { .bucket_size = 2, .is_concurrency_enabled = false, .sub_hash_table_bucket_size = 1, .max_linked_list_chain_length = 2 };
     hash_table_memory_pool* table = NULL;
     create_new_hash_table(config, &table);
     const char* key = "testkey";
@@ -43,7 +43,7 @@ void test_upsert_and_get_key_value_from_hash_table(void) {
 }
 
 void test_delete_key_from_hash_table_should_remove_key(void) {
-    hash_table_configuration config = { .bucket_size = 2, .is_concurrency_enabled = false, .sub_hash_table_block_size = 1, .max_linked_list_chain_length = 2 };
+    hash_table_configuration config = { .bucket_size = 2, .is_concurrency_enabled = false, .sub_hash_table_bucket_size = 1, .max_linked_list_chain_length = 2 };
     hash_table_memory_pool* table = NULL;
     create_new_hash_table(config, &table);
     const char* key = "delkey";
@@ -62,7 +62,7 @@ void test_delete_key_from_hash_table_should_remove_key(void) {
 }
 
 void test_get_key_value_from_hash_table_should_fail_for_missing_key(void) {
-    hash_table_configuration config = { .bucket_size = 2, .is_concurrency_enabled = false, .sub_hash_table_block_size = 1, .max_linked_list_chain_length = 2 };
+    hash_table_configuration config = { .bucket_size = 2, .is_concurrency_enabled = false, .sub_hash_table_bucket_size = 1, .max_linked_list_chain_length = 2 };
     hash_table_memory_pool* table = NULL;
     create_new_hash_table(config, &table);
     key_value_pair out = {0};

@@ -260,7 +260,7 @@ void test_create_hash_bucket_node_with_zero_length_value(void) {
 	// Zero-length value
 	key_value_pair kv = { .key = "foo", .value = (unsigned char*)"", .value_size = 0 };
 	int result = upsert_node_to_hash_bucket(bucket_ptr, 123, &kv);
-	TEST_ASSERT_EQUAL(0, result); // Should reject zero-length value
+	TEST_ASSERT_LESS_THAN(0, result); // Should reject zero-length value
     TEST_ASSERT_EQUAL(0, cleanup_hash_bucket(bucket_ptr));
     free(bucket_ptr);
 }

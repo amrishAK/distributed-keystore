@@ -56,19 +56,19 @@ typedef struct
  *
  * This structure contains various configuration settings used during the creation
  * and initialization of a hash table, including bucket size, concurrency settings,
- * sub-hash-table block size, and maximum linked list chain length.
+ * sub-hash-table bucket size, and maximum linked list chain length.
  *
  * Fields:
  *   - bucket_size: Number of buckets in the hash table.
  *   - is_concurrency_enabled: Flag to enable or disable concurrency control.
- *   - sub_hash_table_block_size: Size of each block in the sub-hash-table.
+ *   - sub_hash_table_bucket_size: Size of each bucket in the sub-hash-table.
  *   - max_linked_list_chain_length: Maximum allowed length of linked list chains in buckets (sub hash table will be resized if exceeded).
  */
 typedef struct
 {
     unsigned int bucket_size;
     bool is_concurrency_enabled;
-    unsigned int sub_hash_table_block_size;
+    unsigned int sub_hash_table_bucket_size;
     unsigned int max_linked_list_chain_length;
 } hash_table_configuration;
 

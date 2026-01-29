@@ -42,7 +42,7 @@ void test_hash_table_resizing_trigger_and_data_integrity(void) {
     hash_table_configuration config = {
         .bucket_size = 2,
         .is_concurrency_enabled = false,
-        .sub_hash_table_block_size = 2,
+        .sub_hash_table_bucket_size = 2,
         .max_linked_list_chain_length = 4 // Low to trigger resizing
     };
     hash_table_memory_pool* table = NULL;
@@ -89,7 +89,7 @@ void test_hash_table_delete_and_resize(void) {
     hash_table_configuration config = {
         .bucket_size = 2,
         .is_concurrency_enabled = false,
-        .sub_hash_table_block_size = 1,
+        .sub_hash_table_bucket_size = 1,
         .max_linked_list_chain_length = 4
     };
     hash_table_memory_pool* table = NULL;
@@ -131,7 +131,7 @@ void test_upsert_pending_vs_hash_during_resizing(void) {
     hash_table_configuration config = {
         .bucket_size = 2,
         .is_concurrency_enabled = false,
-        .sub_hash_table_block_size = 1,
+        .sub_hash_table_bucket_size = 1,
         .max_linked_list_chain_length = 4
     };
     hash_table_memory_pool* table = NULL;
