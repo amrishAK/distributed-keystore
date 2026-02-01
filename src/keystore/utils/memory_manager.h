@@ -32,36 +32,9 @@
 #include <pthread.h>
 #include "type_definitions/error_code_definitions.h"
 #include "type_definitions/sucess_code_definitions.h"
+#include "type_definitions/config_type_definitions.h"
+#include "type_definitions/custom_type_definitions.h"
 
-/**
- * @struct memory_pool
- * @brief Structure representing a memory pool for efficient memory management.
- */
-typedef struct memory_pool {
-    
-    size_t block_size; // Size of each block
-    char* pool_start_ptr; // Pointer to the start of the pool memory
-    char* pool_end_ptr;   // Pointer to the end of the pool memory
-    void *next_block_ptr; // Pointer to the next available block
-
-    unsigned int total_blocks; // Total number of blocks in the pool
-    unsigned int available_blocks; // Number of blocks available for allocation
-    unsigned int reusable_blocks;  // Number of blocks available for reuse
-
-    void ** free_block_list; // Array of pointers to free blocks
-    bool is_initialized; // Flag to indicate if the pool is initialized
-
-    pthread_mutex_t pool_lock; // Mutex for thread-safe access
-
-} memory_pool;
-
-typedef struct memory_manager_config {
-    unsigned int bucket_size;
-    unsigned int sub_bucket_size;
-    double pre_allocation_factor;
-    bool allocate_list_pool;
-    bool is_concurrency_enabled;
-} memory_manager_config;
 
 /**
  * @fn initialize_memory_manager
