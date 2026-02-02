@@ -1,7 +1,7 @@
 #include "hash_bucket_operation.h"
 #include "sub_hash_table/sub_hash_table_operation.h"
 #include "type_definitions/error_code_definitions.h"
-#include "hash_table/hash_bucket_resizing_operation.h"
+#include "hash_table/resizing/hash_bucket_resizing_operation.h"
 #include "utils/memory_manager.h"
 #include "data_structures/linked_list_operation.h"
 #include <stdio.h>

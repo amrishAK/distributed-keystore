@@ -1,7 +1,7 @@
 
 #include <windows.h>
 #include "unity.h"
-#include "hash_table/hash_bucket_resizing_operation.h"
+#include "hash_table/resizing/hash_bucket_resizing_operation.h"
 #include "type_definitions/hash_bucket_type_definition.h"
 #include "hash_table/hash_table_operation.h"
 #include <string.h>

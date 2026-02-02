@@ -31,11 +31,11 @@ KEYSTORE_SUBDIRS := $(shell ls -d $(KEYSTORE_DIR)/*/ 2>/dev/null | xargs -n1 bas
 # List of .c files to exclude from build (space-separated, relative to KEYSTORE_DIR)
 KEYSTORE_EXCLUDE = bucket/%.c
 
-# Collect all .c files from detected subdirectories, then filter out excluded files
+# Collect all .c files from detected subdirectories and their subdirectories (e.g., resizing/), then filter out excluded files
 KEYSTORE_SRC := $(filter-out $(addprefix $(KEYSTORE_DIR)/,$(KEYSTORE_EXCLUDE)), \
-                 $(foreach d,$(KEYSTORE_SUBDIRS),$(wildcard $(KEYSTORE_DIR)/$(d)/*.c)))
+				 $(foreach d,$(KEYSTORE_SUBDIRS),$(wildcard $(KEYSTORE_DIR)/$(d)/**/*.c) $(wildcard $(KEYSTORE_DIR)/$(d)/*.c)))
 
-# Map source files to object files in build directory
+# Map source files to object files in build directory, preserving subdirectory structure
 KEYSTORE_OBJS := $(patsubst $(KEYSTORE_DIR)/%.c,$(BUILD_DIR)/%.o,$(KEYSTORE_SRC))
 
 # Unity and test object files
@@ -71,7 +71,8 @@ $(TEST_OBJ): $(TEST_SRC) | $(BUILD_DIR)
 
 
 # Compile keystore sources (unit test build)
-$(BUILD_DIR)/%.o: $(KEYSTORE_DIR)/%.c | $(BUILD_DIR)
+$(BUILD_DIR)/%.o: $(KEYSTORE_DIR)/%.c
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(INCLUDES) $(UNIT_FLAGS) -c $< -o $@
 
 
