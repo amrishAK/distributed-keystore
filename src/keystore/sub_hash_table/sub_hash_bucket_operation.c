@@ -3,6 +3,8 @@
 #include "data_structures/data_node_operation.h"
 #include "utils/memory_manager.h"
 
+#include <stdio.h>
+
 #pragma region private Concurrency Lock Wrapper Declarations
 static int _lock_wrapper_for_linked_list_node_operation(linked_list_node_operation_t operation_type, sub_hash_bucket_operation_args args, linked_list_node* new_node, data_node** data_node_out);
 static int _lock_wrapper_for_data_node_operation(data_node_operation_t operation_type, data_node* data_node_ptr, key_value_pair* value);
@@ -135,6 +137,17 @@ int delete_key_from_sub_hash_bucket(sub_hash_bucket_operation_args args)
 }
 
 
+int is_node_in_sub_hash_bucket(sub_hash_bucket_operation_args args)
+{
+    if(args.sub_hash_bucket_ptr == NULL || args.key == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
+
+    data_node* target_data_node = NULL;
+    int result = (args.sub_hash_bucket_ptr->is_concurrency_enabled) ? _lock_wrapper_for_linked_list_node_operation(GET_LL_NODE, args, NULL, &target_data_node) : get_data_node_from_linked_list(args.sub_hash_bucket_ptr->linked_list_head, args.key, args.key_hash, false, &target_data_node);
+
+    return result;
+}
+
+
 #pragma endregion
 
 
@@ -225,6 +238,7 @@ int _check_for_resize_condition(sub_hash_bucket* sub_hash_bucket_ptr)
 {
     if(sub_hash_bucket_ptr == NULL) return ERR_INVALID_ARGUMENT;
 
+    // Check if the total node count exceeds the maximum linked list chain length threshold
     if(sub_hash_bucket_ptr->total_node_count <= sub_hash_bucket_ptr->max_linked_list_chain_length) {
         return 0; // No resize needed
     }
@@ -244,7 +258,7 @@ int _check_for_resize_condition(sub_hash_bucket* sub_hash_bucket_ptr)
     sub_hash_bucket_ptr->total_node_count -= cleanup_result;
 
     // After cleanup, check if we still need to resize
-    if(sub_hash_bucket_ptr->total_node_count >= 12) {
+    if(sub_hash_bucket_ptr->total_node_count >= sub_hash_bucket_ptr->max_linked_list_chain_length) {
         return 20; // Indicate that resizing is needed
     }
 

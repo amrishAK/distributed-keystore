@@ -15,6 +15,13 @@ This document lists all custom error and return codes used in the distributed-ke
 | 0     | SUCCESS      | Operation completed successfully     |
 | -1    | ERR_FAILURE  | General/unspecified failure          |
 
+### Extended Success Codes
+| Code  | Name                                     | Meaning/Description                                      |
+|-------|------------------------------------------|----------------------------------------------------------|
+| 10    | SUCESS_ADDED_NEW_NODE                    | New key-value node inserted successfully                 |
+| 11    | SUCCESS_ADDED_TO_PENDING_LIST            | Entry added to resize pending buffer (internal)          |
+| 20    | SUCESS_ADDED_NEW_NODE_RESZING_TRIGGERED  | New node inserted and sub-hash-table resize triggered    |
+
 ### Argument/Validation Errors
 | Code  | Name                   | Meaning/Description                       |
 |-------|------------------------|-------------------------------------------|
@@ -98,6 +105,12 @@ This document lists all custom error and return codes used in the distributed-ke
 
 ```c
 #include "error_code_definitions.h"
+#include "sucess_code_definitions.h"
+
+// Extended Success Codes
+// result == SUCESS_ADDED_NEW_NODE (10)          — new key-value pair inserted
+// result == SUCCESS_ADDED_TO_PENDING_LIST (11)  — added to resize pending buffer
+// result == SUCESS_ADDED_NEW_NODE_RESZING_TRIGGERED (20) — inserted + resize triggered
 
 // Argument/Validation
 if (key == NULL) return ERR_INVALID_ARGUMENT; // -11

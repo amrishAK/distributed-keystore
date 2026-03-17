@@ -4,14 +4,16 @@
 #include "sub_hash_table/sub_hash_bucket_operation.h"
 #include "sub_hash_table/sub_hash_table_operation.h"
 #include "resize_operation.h"
-#include "utils/helper_functions.h"
+#include "buffer_operation.h"
+#include "utils/background_task_manager.h"
 #include <string.h>
+#include "utils/memory_manager.h"
+
+#include <stdio.h>
 
 
 #pragma region Private Function Definitions
 int _find_node_in_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr, const char* key, uint32_t key_hash, key_value_pair* key_value_pair_out);
-int _add_node_to_pending_list(hash_bucket* hash_bucket_ptr, uint32_t key_hash, key_value_pair* kv_pair, bool is_delete_operation);
-int _resize_hash_bucket(void* hash_bucket_ptr);
 int _delete_node_while_resizing(hash_bucket* hash_bucket_ptr, const char *key, uint32_t key_hash);
 int _update_node_while_resizing(hash_bucket* hash_bucket_ptr, uint32_t key_hash, key_value_pair* kv_pair);
 #pragma endregion
@@ -26,13 +28,16 @@ int initialize_hash_bucket_resizing(hash_bucket* hash_bucket_ptr)
     hash_bucket_ptr->snapshot_sub_hash_table_ptr = NULL;
     hash_bucket_ptr->is_resizing = true;
     hash_bucket_ptr->snapshot_sub_hash_table_ptr = hash_bucket_ptr->sub_hash_table_ptr;
-    hash_bucket_ptr->sub_hash_table_ptr = NULL; // New sub-hash-table will be assigned later
+    initialize_resizing_buffer(hash_bucket_ptr);
 
-    return initialize_background_function(hash_bucket_resize_worker, (void*)hash_bucket_ptr);
+    int result =  initialize_background_function(hash_bucket_resize_worker, (void*)hash_bucket_ptr, true, NULL);
+    return result;
 }
 
 int upsert_node_to_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr, uint32_t key_hash, key_value_pair* kv_pair) {
     if (hash_bucket_ptr == NULL || kv_pair == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
+
+    
 
     //If the resizing finished while waiting for the lock, proceed with normal upsert
     if(!hash_bucket_ptr->is_resizing) {
@@ -47,8 +52,12 @@ int get_key_value_from_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr,
 
     //If the resizing finished while waiting for the lock, proceed with normal upsert
     if(!hash_bucket_ptr->is_resizing) {
-        return get_key_store_value_from_sub_hash_table(hash_bucket_ptr->sub_hash_table_ptr, key_hash, key, kv_pair_out);
+        int result = get_key_store_value_from_sub_hash_table(hash_bucket_ptr->sub_hash_table_ptr, key_hash, key, kv_pair_out);
+        
+        return result;
     }
+
+    
 
     return _find_node_in_hash_bucket_during_resizing(hash_bucket_ptr, key, key_hash, kv_pair_out);
 }
@@ -64,6 +73,18 @@ int delete_key_from_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr, co
     return _delete_node_while_resizing(hash_bucket_ptr, key, key_hash);
 }
 
+int check_resize_status(hash_bucket* hash_bucket_ptr) {
+    if (hash_bucket_ptr == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
+
+    bool is_resizing = hash_bucket_ptr->is_resizing;
+
+    if(is_resizing) {
+        return 21; // Indicate that resizing is still in progress
+    }
+    
+    return SUCCESS; // Resizing has completed
+}
+
 #pragma endregion
 
 #pragma region Private Function Definitions
@@ -72,101 +93,65 @@ int _find_node_in_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr, cons
 {
     if (hash_bucket_ptr == NULL || key_value_pair_out == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
-    int result = 0;
+    int result = ERR_DATA_NODE_NOT_FOUND;
     
-    // First, check in the pending list
-    data_node* target_data_node = NULL;
-    result = get_data_node_from_linked_list(hash_bucket_ptr->pending_list_head, key, key_hash, true, &target_data_node);
+    result = is_node_in_sub_hash_table(hash_bucket_ptr->snapshot_sub_hash_table_ptr, key_hash, key);
 
-    if (result == SUCCESS) {
+    if(result == SUCCESS)
+    {
+        result = get_node_from_resizing_buffer(hash_bucket_ptr, key_hash, key, true, key_value_pair_out);      
 
-        // Check if the node is marked as deleted
-        if (target_data_node->is_deleted) {
-            return ERR_DATA_NODE_NOT_FOUND; // Node is marked as deleted
-        }
-        else{
-
-            return read_data_node_value(target_data_node, key_value_pair_out);
-        }
-
-    }
-
-    // Next, check in the snapshot sub-hash-table
-    if (hash_bucket_ptr->snapshot_sub_hash_table_ptr != NULL) {
-        result = get_key_store_value_from_sub_hash_table(hash_bucket_ptr->snapshot_sub_hash_table_ptr, key_hash, key, key_value_pair_out);
-        if (result == SUCCESS) {
-            return SUCCESS; // Node found in snapshot sub-hash-table
+        if(result == ERR_DATA_NODE_NOT_FOUND) {
+            // Node not found in current operation buffer, get from snapshot sub hash table
+            result = get_key_store_value_from_sub_hash_table(hash_bucket_ptr->snapshot_sub_hash_table_ptr, key_hash, key, key_value_pair_out);
+            return result;
         }
     }
-
-    return ERR_DATA_NODE_NOT_FOUND; // Node not found
-}
-
-int _add_node_to_pending_list(hash_bucket* hash_bucket_ptr, uint32_t key_hash, key_value_pair* kv_pair, bool is_delete_operation)
-{
-    if (hash_bucket_ptr == NULL || kv_pair == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
-
-    data_node* new_data_node = NULL;
-    int result = create_new_data_node(key_hash, kv_pair, hash_bucket_ptr->sub_hash_table_config.is_concurrency_enabled, &new_data_node);
-    if (result != SUCCESS) return result; // Error handling: failed to create new data node
-    
-    // Mark as deleted if it's a delete operation
-    if(is_delete_operation) {
-        new_data_node->is_deleted = true;
+    else{
+        result = get_node_from_resizing_buffer(hash_bucket_ptr, key_hash, key, false, key_value_pair_out);
+        
     }
 
-    linked_list_node* new_list_node = NULL;
-    result = create_new_linked_list_node(key_hash, new_data_node, &new_list_node);
-    if (result != SUCCESS) {
-        delete_data_node(new_data_node);
-        return ERR_MEMORY_ALLOCATION_FAILED; // Error handling: memory allocation failure
-    }
-
-    result = insert_linked_list_node(&hash_bucket_ptr->pending_list_head, new_list_node);
-
-    return (result == SUCCESS) ? SUCCESS_ADDED_TO_PENDING_LIST : result; // Return SUCCESS_ADDED_TO_PENDING_LIST to indicate node added to pending list successfully
+    return result; // Node not found
 }
 
 
 int _delete_node_while_resizing(hash_bucket* hash_bucket_ptr, const char *key, uint32_t key_hash)
 {
     int result = 0;
-    data_node* target_data_node = NULL;
-    result = get_data_node_from_linked_list(hash_bucket_ptr->pending_list_head, key, key_hash, false, &target_data_node);
     
+    result = is_node_in_sub_hash_table(hash_bucket_ptr->snapshot_sub_hash_table_ptr, key_hash, key);
+
     if(result == SUCCESS) {
-        // Node found, update it
-        int delete_result = soft_delete_data_node(target_data_node);
-        return delete_result;
+        // Node found, add to delete operation list in buffer
+        result = insert_delete_operation_to_resizing_buffer(hash_bucket_ptr, key_hash, key);
     }
     else if(result == ERR_DATA_NODE_NOT_FOUND) {
-        // Node not found, add to pending list
-        // key_value_pair with dummy value indicates delete operation
-        char* dummy_value = "to_be_deleted";
-        key_value_pair kv_pair = {.key = (char*)key, .value = (unsigned char *)dummy_value, .value_size = strlen(dummy_value)+1};
-        return _add_node_to_pending_list(hash_bucket_ptr, key_hash, &kv_pair, true);
+        // Node not found, add to current operation list in buffer
+        unsigned char* dummy_value = "dummy_value"; // Use the key as the dummy key for deletion
+        key_value_pair dummy_kv_pair = { .key = (char*)key, .value = dummy_value, .value_size = strlen((char*)dummy_value) };
+        result = insert_node_to_new_operation_buffer(hash_bucket_ptr, key_hash, &dummy_kv_pair, true);
     }
-    else {
-        return result; // Propagate other errors
-    }
+
+    return result;
 }
 
 int _update_node_while_resizing(hash_bucket* hash_bucket_ptr, uint32_t key_hash, key_value_pair* kv_pair)
 {
     int result = 0;
-    data_node* target_data_node = NULL;
-    result = get_data_node_from_linked_list(hash_bucket_ptr->pending_list_head, kv_pair->key, key_hash, false, &target_data_node);
     
-    // If found, update the existing node. else, add to pending list
+    result = is_node_in_sub_hash_table(hash_bucket_ptr->snapshot_sub_hash_table_ptr, key_hash, kv_pair->key);
+
     if(result == SUCCESS) {
-        return edit_data_node_value(target_data_node, kv_pair);
+        // Node found, add to update operation list in buffer
+        result = insert_update_operation_to_resizing_buffer(hash_bucket_ptr, key_hash, kv_pair);
     }
     else if(result == ERR_DATA_NODE_NOT_FOUND) {
-        return _add_node_to_pending_list(hash_bucket_ptr, key_hash, kv_pair, false);
+        // Node not found, add to current operation list in buffer
+        result = insert_node_to_new_operation_buffer(hash_bucket_ptr, key_hash, kv_pair, false);
     }
-    else {
-        return result;
-    }
+
+    return result;
 }
 
 #pragma endregion

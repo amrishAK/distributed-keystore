@@ -10,7 +10,6 @@
 #include "config_type_definitions.h"
 
 
-
 #pragma region Sub Hash Table Definitions
 
 /**
@@ -65,6 +64,27 @@ typedef struct
 
 #pragma endregion
 
+
+/**
+ * @struct resizing_buffer
+ * @brief Represents the buffer used during hash table resizing operations.
+ *
+ * The resizing_buffer structure manages temporary data structures used during the resizing of the hash table.
+ * It includes pointers to the new sub-hash-table, buffers for deleted and updated operations, and a buffer for new operations.
+ *
+ * Fields:
+ *   - new_sub_hash_table_ptr: Pointer to the new sub-hash-table memory pool being created during resizing.
+ *   - deleted_operation_buffer_head: Head of the linked list buffer for delete operations during resizing.
+ *   - updated_operation_buffer_head: Head of the linked list buffer for update operations during resizing.
+ *   - new_operation_buffer_ptr: Pointer to the buffer for new operations during resizing.
+ */
+typedef struct {
+    sub_hash_table_memory_pool* new_sub_hash_table_ptr;
+    delete_operation_buffer* delete_operation_buffer_ptr;
+    linked_list_node* updated_operation_buffer_head;
+    new_operation_buffer* new_operation_buffer_ptr;
+} resizing_buffer;
+
 #pragma region Hash Table Definitions
 
 /**
@@ -87,7 +107,7 @@ typedef struct
 {
     sub_hash_table_memory_pool* sub_hash_table_ptr;
     sub_hash_table_memory_pool* snapshot_sub_hash_table_ptr;
-    linked_list_node* pending_list_head;
+    resizing_buffer* resizing_buffer_ptr;
     pthread_mutex_t  resizing_lock;
     unsigned int node_count;
     bool is_resizing;
@@ -120,6 +140,8 @@ typedef struct
 } hash_table_memory_pool;
 
 #pragma endregion
+
+
 
 
 #endif // HASH_BUCKET_TYPE_DEFINITION_H

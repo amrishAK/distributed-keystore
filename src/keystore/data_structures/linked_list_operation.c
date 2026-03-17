@@ -110,7 +110,7 @@ int _get_data_node_from_linked_list(linked_list_node *node_header_ptr, const cha
 
 int _delete_all_linked_list_nodes(linked_list_node *node_header_ptr)
 {
-    if(node_header_ptr == NULL) return 0; // Nothing to delete
+    if(node_header_ptr == NULL) return SUCCESS; // Nothing to delete
 
     linked_list_node *current_node_ptr = node_header_ptr;
     linked_list_node *next_node_ptr = NULL;
@@ -123,12 +123,12 @@ int _delete_all_linked_list_nodes(linked_list_node *node_header_ptr)
         current_node_ptr = next_node_ptr;
     }
 
-    return 0; // Success
+    return SUCCESS; // Success
 }
 
 int _cleanup_deleted_linked_list_nodes(linked_list_node *node_header_ptr)
 {
-    if(node_header_ptr == NULL) return 0; // Nothing to clean up
+    if(node_header_ptr == NULL) return SUCCESS; // Nothing to clean up
 
     linked_list_node *current_node_ptr = node_header_ptr;
     linked_list_node *prev_node_ptr = NULL;

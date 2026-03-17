@@ -73,5 +73,13 @@ int get_key_store_value_from_sub_hash_bucket(sub_hash_bucket_operation_args args
  */
 int delete_key_from_sub_hash_bucket(sub_hash_bucket_operation_args args);
 
+/**
+ * @fn is_node_in_sub_hash_bucket
+ * @brief Checks if a data node exists in the sub-hash-bucket by key and key hash.
+ * @param args Structure containing sub-hash-bucket pointer, key, and key hash.
+ * @return int Returns 0 if the node exists, or a negative value if the node was not found.
+ */
+int is_node_in_sub_hash_bucket(sub_hash_bucket_operation_args args);
+
 
 #endif // SUB_HASH_BUCKET_OPERATION_H

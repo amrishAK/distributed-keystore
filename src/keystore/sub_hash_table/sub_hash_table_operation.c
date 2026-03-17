@@ -15,7 +15,7 @@ int create_new_sub_hash_table(sub_hash_table_configuration config, bool earlyIni
 {
     if (!is_power_of_two(config.bucket_size))  return ERR_INVALID_CONFIG; // Error handling: bucket_size must be a power of two
 
-    sub_hash_table_memory_pool* new_memory_pool_ptr = allocate_memory(sizeof(sub_hash_table_memory_pool));
+    sub_hash_table_memory_pool* new_memory_pool_ptr = callocate_memory(1, sizeof(sub_hash_table_memory_pool));
     if (new_memory_pool_ptr == NULL) return ERR_MEMORY_ALLOCATION_FAILED; // Error handling: memory allocation failed
 
     new_memory_pool_ptr->block_size = sizeof(sub_hash_bucket);
@@ -106,6 +106,20 @@ int delete_key_from_sub_hash_table(sub_hash_table_memory_pool* sub_hash_table_pt
 
     return delete_key_from_sub_hash_bucket(bucket_args);
 }
+
+int is_node_in_sub_hash_table(sub_hash_table_memory_pool* sub_hash_table_ptr, uint32_t key_hash, const char* key)
+{
+    if(sub_hash_table_ptr == NULL || key == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
+
+    sub_hash_bucket* target_sub_hash_bucket;
+    int check_result = _get_sub_hash_table_bucket(sub_hash_table_ptr, key_hash, &target_sub_hash_bucket);
+    if (check_result != 0) return check_result;
+
+    sub_hash_bucket_operation_args bucket_args = {target_sub_hash_bucket, key, key_hash};
+
+    return is_node_in_sub_hash_bucket(bucket_args);
+}
+
 #pragma endregion
 
 

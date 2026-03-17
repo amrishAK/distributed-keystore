@@ -56,6 +56,8 @@ void test_add_and_get_node_from_sub_hash_bucket(void) {
     TEST_ASSERT_EQUAL(0, get_result);
     TEST_ASSERT_EQUAL_STRING("key", out.key);
     TEST_ASSERT_EQUAL_STRING("value", out.value);
+    if (out.key) free(out.key);
+    if (out.value) free(out.value);
     cleanup_sub_hash_bucket(&bucket);
 }
 
@@ -74,6 +76,8 @@ void test_update_node_in_sub_hash_bucket(void) {
     int get_result = get_key_store_value_from_sub_hash_bucket(args, &out);
     TEST_ASSERT_EQUAL(0, get_result);
     TEST_ASSERT_EQUAL_STRING("newval", out.value);
+    if (out.key) free(out.key);
+    if (out.value) free(out.value);
     cleanup_sub_hash_bucket(&bucket);
 }
 
@@ -89,6 +93,8 @@ void test_delete_key_from_sub_hash_bucket(void) {
     key_value_pair out = {0};
     int get_result = get_key_store_value_from_sub_hash_bucket(args, &out);
     TEST_ASSERT_LESS_THAN(0, get_result);
+    if (out.key) free(out.key);
+    if (out.value) free(out.value);
     cleanup_sub_hash_bucket(&bucket);
 }
 
@@ -148,6 +154,10 @@ void test_multiple_nodes_chain_sub_hash_bucket(void) {
     TEST_ASSERT_EQUAL(0, r2);
     TEST_ASSERT_EQUAL_STRING("A", out1.key);
     TEST_ASSERT_EQUAL_STRING("B", out2.key);
+    if (out1.key) free(out1.key);
+    if (out1.value) free(out1.value);
+    if (out2.key) free(out2.key);
+    if (out2.value) free(out2.value);
     cleanup_sub_hash_bucket(&bucket);
 }
 
@@ -163,7 +173,9 @@ void test_update_delete_get_after_sub_hash_bucket_cleanup(void) {
     int res2 = delete_key_from_sub_hash_bucket(args);
     key_value_pair out = {0};
     int res3 = get_key_store_value_from_sub_hash_bucket(args, &out);
-    TEST_ASSERT_LESS_THAN(0, res1);
+    TEST_ASSERT_LESS_THAN(0, res3);
+    if (out.key) free(out.key);
+    if (out.value) free(out.value);
     TEST_ASSERT_LESS_THAN(0, res2);
     TEST_ASSERT_LESS_THAN(0, res3);
 }
@@ -227,6 +239,8 @@ void test_read_sub_hash_bucket_node_after_deletion(void){
     key_value_pair out = {0};
     int get_result = get_key_store_value_from_sub_hash_bucket(args, &out);
     TEST_ASSERT_LESS_THAN(0, get_result);
+    if (out.key) free(out.key);
+    if (out.value) free(out.value);
     cleanup_sub_hash_bucket(&bucket);
 }
 

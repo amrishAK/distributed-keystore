@@ -1,13 +1,17 @@
 #include "resize_operation.h"
 #include "sub_hash_table/sub_hash_table_operation.h"
 #include "data_structures/linked_list_operation.h"
+#include "buffer_operation.h"
+#include "utils/memory_manager.h"
+#include "type_definitions/background_task_manager_type_definitons.h"
+
+#include <stdio.h>
 
 #pragma region Resizing Helper Functions Declarations
-static int _apply_pending_list_operations_to_sub_hash_table(hash_bucket* hash_bucket_ptr, sub_hash_table_memory_pool* target_sub_hash_table_ptr);
 static int _append_list_nodes_to_sub_hash_table(linked_list_node* source_linked_list_head, sub_hash_table_memory_pool* sub_hash_table_ptr);
 static int _fillup_new_sub_hash_table(hash_bucket* hash_bucket_ptr, sub_hash_table_memory_pool* new_sub_hash_table_ptr);
-static int _perform_hash_bucket_resizing(hash_bucket* hash_bucket_ptr, sub_hash_table_configuration new_config, int retry_count, sub_hash_table_memory_pool** new_sub_hash_table_out);
-static int _finalize_hash_bucket_resizing(hash_bucket* hash_bucket_ptr, sub_hash_table_configuration new_config, sub_hash_table_memory_pool* new_sub_hash_table_ptr);
+static int _perform_hash_bucket_resizing(hash_bucket* hash_bucket_ptr, sub_hash_table_configuration new_config, int retry_count);
+static int _finalize_hash_bucket_resizing(hash_bucket* hash_bucket_ptr, sub_hash_table_configuration new_config);
 #pragma endregion
 
 
@@ -17,20 +21,29 @@ int hash_bucket_resize_worker(void* input_arg)
 {
     if (input_arg == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
-    hash_bucket* hash_bucket_ptr = (hash_bucket*)input_arg;
-
-    sub_hash_table_configuration new_config = hash_bucket_ptr->sub_hash_table_config;
-    new_config.bucket_size *= 2; // Example: double the bucket size during resizing
+    background_task_args_t* args = (background_task_args_t*)input_arg;
+    hash_bucket* hash_bucket_ptr = (hash_bucket*)args->task_input_args;
 
     
-    sub_hash_table_memory_pool* new_sub_hash_table_ptr = NULL;
-    _perform_hash_bucket_resizing(hash_bucket_ptr, new_config, 3, &new_sub_hash_table_ptr);
+
+    sub_hash_table_configuration new_config = {0};
+    new_config.bucket_size = hash_bucket_ptr->sub_hash_table_config.bucket_size * 2; // Example resizing strategy: double the bucket size
+    new_config.is_concurrency_enabled = hash_bucket_ptr->sub_hash_table_config.is_concurrency_enabled;
+    new_config.max_linked_list_chain_length = hash_bucket_ptr->sub_hash_table_config.max_linked_list_chain_length;
+    
+    _perform_hash_bucket_resizing(hash_bucket_ptr, new_config, 3);
+
+    
 
     //acquire resizing lock
     pthread_mutex_lock(&hash_bucket_ptr->resizing_lock);
 
-    _finalize_hash_bucket_resizing(hash_bucket_ptr, new_config, new_sub_hash_table_ptr);
+    _finalize_hash_bucket_resizing(hash_bucket_ptr, new_config);
 
+    
+    delete_resizing_buffer(hash_bucket_ptr->resizing_buffer_ptr);
+    hash_bucket_ptr->resizing_buffer_ptr = NULL;
+    hash_bucket_ptr->is_resizing = false;
     pthread_mutex_unlock(&hash_bucket_ptr->resizing_lock);
 
     return SUCCESS;
@@ -50,10 +63,12 @@ int hash_bucket_resize_worker(void* input_arg)
  * @param new_sub_hash_table_out Output pointer to the newly created sub-hash-table.
  * @return int SUCCESS on success, error code on failure.
  */
-int _perform_hash_bucket_resizing(hash_bucket* hash_bucket_ptr, sub_hash_table_configuration new_config, int retry_count, sub_hash_table_memory_pool** new_sub_hash_table_out)
+int _perform_hash_bucket_resizing(hash_bucket* hash_bucket_ptr, sub_hash_table_configuration new_config, int retry_count)
 {
-    if (hash_bucket_ptr == NULL || new_sub_hash_table_out == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
+    if (hash_bucket_ptr == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
     if (retry_count <= 0) return ERR_MAX_RETRY_EXCEEDED; // Error handling: max retries exceeded
+
+    if(hash_bucket_ptr->resizing_buffer_ptr == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid
 
     int attempt_result = 0;
     
@@ -62,11 +77,37 @@ int _perform_hash_bucket_resizing(hash_bucket* hash_bucket_ptr, sub_hash_table_c
         sub_hash_table_memory_pool* new_sub_hash_table_ptr = NULL;
         int create_result = create_new_sub_hash_table(new_config, true, &new_sub_hash_table_ptr);
 
-        if(create_result == SUCCESS) {
-            int fill_result = _fillup_new_sub_hash_table(hash_bucket_ptr, new_sub_hash_table_ptr);
+        if(new_sub_hash_table_ptr != NULL) {
+            hash_bucket_ptr->resizing_buffer_ptr->new_sub_hash_table_ptr = new_sub_hash_table_ptr;
+            
+        }
+        else
+        {
+            attempt_result = ERR_FAILURE;
+        }
 
+        if(create_result == SUCCESS) {
+            uint32_t task_uuid;
+            int fill_result;
+            int result = initialize_chase_worker(hash_bucket_ptr->resizing_buffer_ptr, &task_uuid);
+            
+            
+            if(result == SUCCESS) {
+                fill_result = _fillup_new_sub_hash_table(hash_bucket_ptr, new_sub_hash_table_ptr);
+                
+            }
+            
+            result = wait_for_chase_worker_to_finish(hash_bucket_ptr->resizing_buffer_ptr, task_uuid);
+            
+
+            if (result != SUCCESS)
+            {
+                fill_result = result; // If waiting for the chase worker failed, treat it as a failure for filling the new sub-hash-table
+            }
+            
+
+            // If filling is successful, set the new sub-hash-table in the resizing buffer to be swapped in later.
             if(fill_result == SUCCESS) {
-                *new_sub_hash_table_out = new_sub_hash_table_ptr;
                 attempt_result = SUCCESS;
                 break;
             }
@@ -81,9 +122,9 @@ int _perform_hash_bucket_resizing(hash_bucket* hash_bucket_ptr, sub_hash_table_c
         }
 
         // Cleanup on failure before retrying
-        if(new_sub_hash_table_ptr != NULL) {
-            cleanup_sub_hash_table(new_sub_hash_table_ptr);
-            new_sub_hash_table_ptr = NULL;
+        if(hash_bucket_ptr->resizing_buffer_ptr->new_sub_hash_table_ptr != NULL) {
+            cleanup_sub_hash_table(hash_bucket_ptr->resizing_buffer_ptr->new_sub_hash_table_ptr);
+            hash_bucket_ptr->resizing_buffer_ptr->new_sub_hash_table_ptr = NULL;
         }
     }
 
@@ -135,44 +176,35 @@ int _fillup_new_sub_hash_table(hash_bucket* hash_bucket_ptr, sub_hash_table_memo
  * @param new_sub_hash_table_ptr Pointer to the newly created sub-hash-table.
  * @return int SUCCESS on success, error code on failure.
  */
-int _finalize_hash_bucket_resizing(hash_bucket* hash_bucket_ptr, sub_hash_table_configuration new_config, sub_hash_table_memory_pool* new_sub_hash_table_ptr)
+int _finalize_hash_bucket_resizing(hash_bucket* hash_bucket_ptr, sub_hash_table_configuration new_config)
 {
     if (hash_bucket_ptr == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
     int result = SUCCESS;
     
-    // Apply pending operations: Apply all pending operations to the new sub-hash-table if it exists, otherwise to the snapshot sub-hash-table
-    if(new_sub_hash_table_ptr != NULL)
-    {
-        result = _apply_pending_list_operations_to_sub_hash_table(hash_bucket_ptr, new_sub_hash_table_ptr);
-    }
-    else {
-        result = _apply_pending_list_operations_to_sub_hash_table(hash_bucket_ptr, hash_bucket_ptr->snapshot_sub_hash_table_ptr);
-    }
-
-    if(result != SUCCESS)  return result; // Propagate error
-
+    result = commit_resizing_buffer_operations_to_sub_hash_table(hash_bucket_ptr);
+    if(result != SUCCESS) return result;
     
     // Swap hash tables: Swap in the new sub-hash-table if it was created, otherwise retain the snapshot sub-hash-table
-    if(new_sub_hash_table_ptr != NULL) {
-        hash_bucket_ptr->sub_hash_table_ptr = new_sub_hash_table_ptr;
-        hash_bucket_ptr->sub_hash_table_config = new_config;
+    if(hash_bucket_ptr->resizing_buffer_ptr->new_sub_hash_table_ptr != NULL) {
         
+        hash_bucket_ptr->sub_hash_table_ptr = hash_bucket_ptr->resizing_buffer_ptr->new_sub_hash_table_ptr;
+        hash_bucket_ptr->sub_hash_table_config = new_config;
+        hash_bucket_ptr->resizing_buffer_ptr->new_sub_hash_table_ptr = NULL; // Clear the pointer in the resizing buffer since it's now active
+
         if(hash_bucket_ptr->snapshot_sub_hash_table_ptr != NULL) {
             cleanup_sub_hash_table(hash_bucket_ptr->snapshot_sub_hash_table_ptr);
+            free_memory(hash_bucket_ptr->snapshot_sub_hash_table_ptr, false);
             hash_bucket_ptr->snapshot_sub_hash_table_ptr = NULL;
         }
     }
     else {
         hash_bucket_ptr->sub_hash_table_ptr = hash_bucket_ptr->snapshot_sub_hash_table_ptr;
+        hash_bucket_ptr->snapshot_sub_hash_table_ptr = NULL; // Clear the snapshot pointer since it's now active
     }
 
     // Cleanup pending list and reset resizing state
-    delete_all_linked_list_nodes(hash_bucket_ptr->pending_list_head);
-    hash_bucket_ptr->pending_list_head = NULL;
 
-    hash_bucket_ptr->is_resizing = false;
-    hash_bucket_ptr->snapshot_sub_hash_table_ptr = NULL;
     return SUCCESS;
 }
 
@@ -211,50 +243,6 @@ int _append_list_nodes_to_sub_hash_table(linked_list_node* source_linked_list_he
         int result = upsert_node_to_sub_hash_table(sub_hash_table_ptr, current_node->key_hash, &kv_pair);
         if (result != SUCCESS) {
             return result; // Propagate error
-        }
-
-        current_node = current_node->next_node_ptr;
-    }
-
-    return SUCCESS;
-}
-
-/**
- * @fn apply_pending_list_operations_to_sub_hash_table
- * @brief Applies pending operations recorded during resizing to the specified sub-hash-table. It iterates through each node
- * in the pending list of the hash bucket, and for each node, it checks whether it is marked as deleted or not. If the node is marked
- * as deleted, it performs a delete operation on the target sub-hash-table. If the node is not marked as deleted, it performs an upsert
- * operation to add or update the corresponding key-value pair in the target sub-hash-table.
- * @param hash_bucket_ptr Pointer to the hash bucket containing the pending list.
- * @param target_sub_hash_table_ptr Pointer to the target sub-hash-table where operations will be applied.
- * @return int SUCCESS on success, error code on failure.
- */
-int _apply_pending_list_operations_to_sub_hash_table(hash_bucket* hash_bucket_ptr, sub_hash_table_memory_pool* target_sub_hash_table_ptr)
-{
-    if (hash_bucket_ptr == NULL || target_sub_hash_table_ptr == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
-
-    linked_list_node* current_node = hash_bucket_ptr->pending_list_head;
-    
-    while (current_node != NULL) {
-
-        if(current_node->data_node_ptr-> is_deleted) {
-            // Delete operation
-            int delete_result = delete_key_from_sub_hash_table(target_sub_hash_table_ptr, current_node->key_hash, current_node->data_node_ptr->key);
-            if (delete_result != SUCCESS && delete_result != ERR_DATA_NODE_NOT_FOUND) {
-                return delete_result; // Propagate error
-            }
-        }
-        else {
-            // Upsert operation
-            key_value_pair kv_pair = {
-                .key = current_node->data_node_ptr->key,
-                .value = current_node->data_node_ptr->data,
-                .value_size = current_node->data_node_ptr->data_size
-            };
-            int upsert_result = upsert_node_to_sub_hash_table(target_sub_hash_table_ptr, current_node->key_hash, &kv_pair);
-            if (upsert_result != SUCCESS && upsert_result != SUCESS_ADDED_NEW_NODE_RESZING_TRIGGERED) {
-                return upsert_result; // Propagate error
-            }
         }
 
         current_node = current_node->next_node_ptr;

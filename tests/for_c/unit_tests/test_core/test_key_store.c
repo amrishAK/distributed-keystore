@@ -24,20 +24,27 @@ void test_initialise_key_store_invalid_config(void) {
     hash_table_configuration config = get_valid_config();
     config.bucket_size = 0;
     TEST_ASSERT_LESS_THAN(0, initialise_key_store(config, 1.0));
+    cleanup_key_store();
     config = get_valid_config();
     config.sub_hash_table_bucket_size = 0;
     TEST_ASSERT_LESS_THAN(0, initialise_key_store(config, 1.0));
+    cleanup_key_store();
     config = get_valid_config();
     config.max_linked_list_chain_length = 0;
     TEST_ASSERT_LESS_THAN(0, initialise_key_store(config, 1.0));
+    cleanup_key_store();
     config = get_valid_config();
     TEST_ASSERT_LESS_THAN(0, initialise_key_store(config, -0.1));
+    cleanup_key_store();
     TEST_ASSERT_LESS_THAN(0, initialise_key_store(config, 1.1));
+    cleanup_key_store();
     config.bucket_size = 7; // not power of two
     TEST_ASSERT_LESS_THAN(0, initialise_key_store(config, 1.0));
+    cleanup_key_store();
     config = get_valid_config();
     config.sub_hash_table_bucket_size = 3; // not power of two
     TEST_ASSERT_LESS_THAN(0, initialise_key_store(config, 1.0));
+    cleanup_key_store();
 }
 
 void test_cleanup_key_store_success(void) {
@@ -59,6 +66,8 @@ void test_set_key_and_get_key_success(void) {
     TEST_ASSERT_EQUAL(0, get_key("mykey", &out_str));
     TEST_ASSERT_EQUAL_STRING("mykey", out_str.key);
     TEST_ASSERT_EQUAL_STRING("val", out_str.value);
+    if (out_str.key) free(out_str.key);
+    if (out_str.value) free(out_str.value);
 
     // Integer value
     int int_val = 123456;
@@ -69,6 +78,8 @@ void test_set_key_and_get_key_success(void) {
     TEST_ASSERT_EQUAL_STRING("intkey", out_int.key);
     TEST_ASSERT_EQUAL(sizeof(int), out_int.value_size);
     TEST_ASSERT_EQUAL(int_val, *(int*)out_int.value);
+    if (out_int.key) free(out_int.key);
+    if (out_int.value) free(out_int.value);
 
     // Float value
     float float_val = 3.14159f;
@@ -79,6 +90,8 @@ void test_set_key_and_get_key_success(void) {
     TEST_ASSERT_EQUAL_STRING("floatkey", out_float.key);
     TEST_ASSERT_EQUAL(sizeof(float), out_float.value_size);
     TEST_ASSERT_TRUE(memcmp(&float_val, out_float.value, sizeof(float)) == 0);
+    if (out_float.key) free(out_float.key);
+    if (out_float.value) free(out_float.value);
 
     // Bytes value (arbitrary binary data)
     unsigned char bytes_val[] = {0xDE, 0xAD, 0xBE, 0xEF};
@@ -89,6 +102,8 @@ void test_set_key_and_get_key_success(void) {
     TEST_ASSERT_EQUAL_STRING("byteskey", out_bytes.key);
     TEST_ASSERT_EQUAL(sizeof(bytes_val), out_bytes.value_size);
     TEST_ASSERT_TRUE(memcmp(bytes_val, out_bytes.value, sizeof(bytes_val)) == 0);
+    if (out_bytes.key) free(out_bytes.key);
+    if (out_bytes.value) free(out_bytes.value);
 
     // Double value
     double double_val = 2.718281828459;
@@ -99,6 +114,8 @@ void test_set_key_and_get_key_success(void) {
     TEST_ASSERT_EQUAL_STRING("doublekey", out_double.key);
     TEST_ASSERT_EQUAL(sizeof(double), out_double.value_size);
     TEST_ASSERT_TRUE(memcmp(&double_val, out_double.value, sizeof(double)) == 0);
+    if (out_double.key) free(out_double.key);
+    if (out_double.value) free(out_double.value);
 
     // Long long value
     long long ll_val = 0x123456789ABCDEF0LL;
@@ -109,6 +126,8 @@ void test_set_key_and_get_key_success(void) {
     TEST_ASSERT_EQUAL_STRING("llkey", out_ll.key);
     TEST_ASSERT_EQUAL(sizeof(long long), out_ll.value_size);
     TEST_ASSERT_TRUE(memcmp(&ll_val, out_ll.value, sizeof(long long)) == 0);
+    if (out_ll.key) free(out_ll.key);
+    if (out_ll.value) free(out_ll.value);
 
     // Bool value
     _Bool bool_val = 1;
@@ -119,6 +138,8 @@ void test_set_key_and_get_key_success(void) {
     TEST_ASSERT_EQUAL_STRING("boolkey", out_bool.key);
     TEST_ASSERT_EQUAL(sizeof(_Bool), out_bool.value_size);
     TEST_ASSERT_TRUE(memcmp(&bool_val, out_bool.value, sizeof(_Bool)) == 0);
+    if (out_bool.key) free(out_bool.key);
+    if (out_bool.value) free(out_bool.value);
 
     // Enum value
     enum Color { RED = 1, GREEN = 2, BLUE = 3 };
@@ -130,6 +151,8 @@ void test_set_key_and_get_key_success(void) {
     TEST_ASSERT_EQUAL_STRING("colorkey", out_enum.key);
     TEST_ASSERT_EQUAL(sizeof(enum Color), out_enum.value_size);
     TEST_ASSERT_TRUE(memcmp(&color_val, out_enum.value, sizeof(enum Color)) == 0);
+    if (out_enum.key) free(out_enum.key);
+    if (out_enum.value) free(out_enum.value);
 
     // Struct value
     struct Point { int x; float y; };
@@ -141,6 +164,8 @@ void test_set_key_and_get_key_success(void) {
     TEST_ASSERT_EQUAL_STRING("structkey", out_struct.key);
     TEST_ASSERT_EQUAL(sizeof(struct Point), out_struct.value_size);
     TEST_ASSERT_TRUE(memcmp(&pt, out_struct.value, sizeof(struct Point)) == 0);
+    if (out_struct.key) free(out_struct.key);
+    if (out_struct.value) free(out_struct.value);
 
     cleanup_key_store();
 }
@@ -161,6 +186,8 @@ void test_set_key_update_existing(void) {
     key_value_pair out = {0};
     TEST_ASSERT_EQUAL(0, get_key("dupkey", &out));
     TEST_ASSERT_EQUAL_STRING("v2", out.value);
+    if (out.key) free(out.key);
+    if (out.value) free(out.value);
 
     cleanup_key_store();
 }
@@ -203,6 +230,8 @@ void test_get_key_not_found(void) {
 
     key_value_pair out = {0};
     TEST_ASSERT_LESS_THAN(0, get_key("notfound", &out));
+    if (out.key) free(out.key);
+    if (out.value) free(out.value);
 
     cleanup_key_store();
 }
@@ -217,7 +246,6 @@ void test_delete_key_success_and_not_found(void) {
 
     TEST_ASSERT_EQUAL(0, delete_key("delkey"));
     TEST_ASSERT_LESS_THAN(0, delete_key("delkey")); // already deleted
-
     cleanup_key_store();
 }
 

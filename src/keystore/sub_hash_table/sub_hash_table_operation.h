@@ -73,4 +73,15 @@ int get_key_store_value_from_sub_hash_table(sub_hash_table_memory_pool* sub_hash
  */
 int delete_key_from_sub_hash_table(sub_hash_table_memory_pool* sub_hash_table_ptr, uint32_t key_hash, const char* key);
 
+
+/**
+ * @fn is_node_in_sub_hash_table
+ * @brief Checks if a data node exists in the sub-hash-table by key and key hash.
+ * @param sub_hash_table_ptr Pointer to the sub-hash-table memory pool.
+ * @param key_hash Hash of the key.
+ * @param key The key string.
+ * @return int Returns 0 if the node exists, or a negative value if the node was not found.
+ */
+int is_node_in_sub_hash_table(sub_hash_table_memory_pool* sub_hash_table_ptr, uint32_t key_hash, const char* key);
+
 #endif // SUB_BUCKET_OPERATIONS_H

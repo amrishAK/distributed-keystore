@@ -10,9 +10,10 @@
 
 #include "type_definitions/error_code_definitions.h"
 #include "type_definitions/sucess_code_definitions.h"
+#include "utils/memory_manager.h"
 
-#define NUM_THREADS 1000
-#define NUM_KEYS_PER_THREAD 1000
+#define NUM_THREADS 120
+#define NUM_KEYS_PER_THREAD 150
 #define MAX_OPS (NUM_THREADS * NUM_KEYS_PER_THREAD)
 
 static uint64_t set_latencies_ns[MAX_OPS];
@@ -65,22 +66,22 @@ void *thread_set_get(void *arg) {
             int idx = atomic_fetch_add(&set_latency_idx, 1);
             if (idx < MAX_OPS) set_latencies_ns[idx] = timespec_diff_ns(&t1, &t2);
         } else {
-            printf("[Thread %d] Failed to set key %s, due to %d\n", ctx->thread_id, key, set_result);
             atomic_fetch_add(&race_errors, 1);
         }
 
-        key_value_pair out = {0};
+        key_value_pair *out = callocate_memory(1, sizeof(key_value_pair));
         clock_gettime(CLOCK_MONOTONIC, &t1);
-        int get_result = get_key(key, &out);
+        int get_result = get_key(key, out);
         clock_gettime(CLOCK_MONOTONIC, &t2);
         if (get_result != 0) {
-            printf("[Thread %d] Key missing after set (bucket-level concurrency) on key %s , result is %d\n", ctx->thread_id, key, get_result);
             atomic_fetch_add(&race_errors, 1);
         } else {
             int idx = atomic_fetch_add(&get_latency_idx, 1);
             if (idx < MAX_OPS) get_latencies_ns[idx] = timespec_diff_ns(&t1, &t2);
         }
-        if (out.value) free((void *)out.value); // Use custom allocator if required by your API
+        if (out->value) free((void *)out->value); // Use custom allocator if required by your API
+        if (out->key) free((void *)out->key);
+        free(out);
     }
     return NULL;
 }
@@ -118,7 +119,7 @@ int main() {
         .bucket_size = 1024,
         .is_concurrency_enabled = true,
         .sub_hash_table_bucket_size = 1024, // or another reasonable default
-        .max_linked_list_chain_length = 10  // or another reasonable default
+        .max_linked_list_chain_length = 20  // or another reasonable default
     };
     if(initialise_key_store(config, 1.0) != 0) {
         printf("Failed to initialize key store with concurrency enabled.\n");

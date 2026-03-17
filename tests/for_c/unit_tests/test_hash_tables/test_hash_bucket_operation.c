@@ -21,7 +21,7 @@
 #include <stdlib.h>
 
 void test_initialise_and_cleanup_hash_bucket(void) {
-	hash_bucket* bucket_ptr = malloc(sizeof(hash_bucket));
+	hash_bucket* bucket_ptr = calloc(1, sizeof(hash_bucket));
 	sub_hash_table_configuration config = { .is_concurrency_enabled = false, .bucket_size = 4, .max_linked_list_chain_length = 4 };
 	int result = initialise_hash_bucket(bucket_ptr, config);
 	TEST_ASSERT_EQUAL(0, result);
@@ -34,7 +34,7 @@ void test_initialise_and_cleanup_hash_bucket(void) {
 }
 
 void test_upsert_and_get_key_value(void) {
-	hash_bucket* bucket_ptr = malloc(sizeof(hash_bucket));
+	hash_bucket* bucket_ptr = calloc(1, sizeof(hash_bucket));
 	sub_hash_table_configuration config = { .is_concurrency_enabled = false, .bucket_size = 4, .max_linked_list_chain_length = 4 };
 	initialise_hash_bucket(bucket_ptr, config);
     unsigned char value[] = "bar";
@@ -53,15 +53,16 @@ void test_upsert_and_get_key_value(void) {
 }
 
 void test_update_existing_key_value(void) {
-	hash_bucket* bucket_ptr = malloc(sizeof(hash_bucket));
+	hash_bucket* bucket_ptr = calloc(1, sizeof(hash_bucket));
 	sub_hash_table_configuration config = { .is_concurrency_enabled = false, .bucket_size = 4, .max_linked_list_chain_length = 4 };
 	initialise_hash_bucket(bucket_ptr, config);
     unsigned char value[] = "bar";
 	key_value_pair kv = { .key = "foo", .value = value, .value_size = strlen((char*)value) + 1 };
-	upsert_node_to_hash_bucket(bucket_ptr, 123, &kv);
+	int result = upsert_node_to_hash_bucket(bucket_ptr, 123, &kv);
+	TEST_ASSERT_TRUE(result == 0 || result == 10);
 	kv.value = (unsigned char*)"baz";
 	kv.value_size = 4;
-	int result = upsert_node_to_hash_bucket(bucket_ptr, 123, &kv);
+	result = upsert_node_to_hash_bucket(bucket_ptr, 123, &kv);
 	TEST_ASSERT_EQUAL(0, result);
 	key_value_pair out = {0};
 	result = get_key_value_from_hash_bucket(bucket_ptr, "foo", 123, &out);
@@ -75,7 +76,7 @@ void test_update_existing_key_value(void) {
 }
 
 void test_delete_key_from_hash_bucket(void) {
-	hash_bucket* bucket_ptr = malloc(sizeof(hash_bucket));
+	hash_bucket* bucket_ptr = calloc(1, sizeof(hash_bucket));
 	sub_hash_table_configuration config = { .is_concurrency_enabled = false, .bucket_size = 4, .max_linked_list_chain_length = 4 };
 	initialise_hash_bucket(bucket_ptr, config);
     unsigned char value[] = "bar";
@@ -91,7 +92,7 @@ void test_delete_key_from_hash_bucket(void) {
 }
 
 void test_invalid_args_hash_bucket(void) {
-	hash_bucket* bucket_ptr = malloc(sizeof(hash_bucket));
+	hash_bucket* bucket_ptr = calloc(1, sizeof(hash_bucket));
 	sub_hash_table_configuration config = { .is_concurrency_enabled = false, .bucket_size = 4, .max_linked_list_chain_length = 4 };
 	// NULL bucket
 	TEST_ASSERT_LESS_THAN(0, initialise_hash_bucket(NULL, config));
@@ -108,7 +109,7 @@ void test_invalid_args_hash_bucket(void) {
 
 // Additional edge and negative tests for coverage
 void test_double_initialise_and_cleanup(void) {
-	hash_bucket* bucket_ptr = malloc(sizeof(hash_bucket));
+	hash_bucket* bucket_ptr = calloc(1, sizeof(hash_bucket));
 	sub_hash_table_configuration config = { .is_concurrency_enabled = false, .bucket_size = 4, .max_linked_list_chain_length = 4 };
 	int result = initialise_hash_bucket(bucket_ptr, config);
 	TEST_ASSERT_EQUAL(0, result);
@@ -125,7 +126,7 @@ void test_double_initialise_and_cleanup(void) {
 }
 
 void test_upsert_null_key_value(void) {
-	hash_bucket* bucket_ptr = malloc(sizeof(hash_bucket));
+	hash_bucket* bucket_ptr = calloc(1, sizeof(hash_bucket));
 	sub_hash_table_configuration config = { .is_concurrency_enabled = false, .bucket_size = 4, .max_linked_list_chain_length = 4 };
 	initialise_hash_bucket(bucket_ptr, config);
 	// Null key
@@ -143,7 +144,7 @@ void test_upsert_null_key_value(void) {
 }
 
 void test_get_and_delete_nonexistent_key(void) {
-	hash_bucket* bucket_ptr = malloc(sizeof(hash_bucket));
+	hash_bucket* bucket_ptr = calloc(1, sizeof(hash_bucket));
 	sub_hash_table_configuration config = { .is_concurrency_enabled = false, .bucket_size = 4, .max_linked_list_chain_length = 4 };
 	initialise_hash_bucket(bucket_ptr, config);
 	// Get non-existent key
@@ -159,7 +160,7 @@ void test_get_and_delete_nonexistent_key(void) {
 
 void test_multiple_keys_and_collision(void) {
 	// Allocate and zero the bucket for safety
-	hash_bucket* bucket_ptr = malloc(sizeof(hash_bucket));
+	hash_bucket* bucket_ptr = calloc(1, sizeof(hash_bucket));
 	TEST_ASSERT_NOT_NULL(bucket_ptr);
 
 	sub_hash_table_configuration config = { .is_concurrency_enabled = false, .bucket_size = 1, .max_linked_list_chain_length = 4 };
@@ -199,7 +200,7 @@ void test_multiple_keys_and_collision(void) {
 }
 
 void test_edit_hash_bucket_node_after_deletion(void) {
-	hash_bucket* bucket_ptr = malloc(sizeof(hash_bucket));
+	hash_bucket* bucket_ptr = calloc(1, sizeof(hash_bucket));
 	sub_hash_table_configuration config = { .is_concurrency_enabled = false, .bucket_size = 4, .max_linked_list_chain_length = 4 };
 	initialise_hash_bucket(bucket_ptr, config);
 	unsigned char value[] = "bar";
@@ -223,7 +224,7 @@ void test_edit_hash_bucket_node_after_deletion(void) {
 }
 
 void test_read_hash_bucket_node_after_deletion(void) {
-	hash_bucket* bucket_ptr = malloc(sizeof(hash_bucket));
+	hash_bucket* bucket_ptr = calloc(1, sizeof(hash_bucket));
 	sub_hash_table_configuration config = { .is_concurrency_enabled = false, .bucket_size = 4, .max_linked_list_chain_length = 4 };
 	initialise_hash_bucket(bucket_ptr, config);
 	unsigned char value[] = "bar";
@@ -239,7 +240,7 @@ void test_read_hash_bucket_node_after_deletion(void) {
 }
 
 void test_delete_hash_bucket_node_twice(void) {
-	hash_bucket* bucket_ptr = malloc(sizeof(hash_bucket));
+	hash_bucket* bucket_ptr = calloc(1, sizeof(hash_bucket));
 	sub_hash_table_configuration config = { .is_concurrency_enabled = false, .bucket_size = 4, .max_linked_list_chain_length = 4 };
 	initialise_hash_bucket(bucket_ptr, config);
 	unsigned char value[] = "bar";
@@ -254,7 +255,7 @@ void test_delete_hash_bucket_node_twice(void) {
 }
 
 void test_create_hash_bucket_node_with_zero_length_value(void) {
-	hash_bucket* bucket_ptr = malloc(sizeof(hash_bucket));
+	hash_bucket* bucket_ptr = calloc(1, sizeof(hash_bucket));
 	sub_hash_table_configuration config = { .is_concurrency_enabled = false, .bucket_size = 4, .max_linked_list_chain_length = 4 };
 	initialise_hash_bucket(bucket_ptr, config);
 	// Zero-length value

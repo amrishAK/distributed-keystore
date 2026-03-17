@@ -20,7 +20,7 @@ int create_new_hash_table(hash_table_configuration config, hash_table_memory_poo
 
     if(hash_table_out == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid output pointer
 
-    hash_table_memory_pool* new_memory_pool_ptr = allocate_memory(sizeof(hash_table_memory_pool));
+    hash_table_memory_pool* new_memory_pool_ptr = callocate_memory(1, sizeof(hash_table_memory_pool));
     if (new_memory_pool_ptr == NULL) return ERR_MEMORY_ALLOCATION_FAILED; // Error handling: memory allocation failed
 
     new_memory_pool_ptr->hash_buckets_ptr = callocate_memory(config.bucket_size, sizeof(hash_bucket));
@@ -34,6 +34,8 @@ int create_new_hash_table(hash_table_configuration config, hash_table_memory_poo
         .is_concurrency_enabled = config.is_concurrency_enabled,
         .max_linked_list_chain_length = config.max_linked_list_chain_length
     };
+
+    
 
     if(config.is_concurrency_enabled) {
         // Eager initialization of hash buckets if concurrency is enabled
@@ -57,7 +59,8 @@ int create_new_hash_table(hash_table_configuration config, hash_table_memory_poo
 }
 
 int cleanup_hash_table(hash_table_memory_pool* hash_table_ptr) {
-    if (hash_table_ptr == NULL || !hash_table_ptr->is_initialized) return 0; // Nothing to clean up
+    if (hash_table_ptr == NULL ) return 0; // Nothing to clean up
+    if (!hash_table_ptr->is_initialized) return 0; // Hash table not initialized, nothing to clean up
 
     for (unsigned int i = 0; i < hash_table_ptr->total_blocks; ++i) {
         cleanup_hash_bucket(&hash_table_ptr->hash_buckets_ptr[i]);

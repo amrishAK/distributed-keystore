@@ -1,41 +1,52 @@
 
-#include <windows.h>
 #include "unity.h"
 #include "hash_table/resizing/hash_bucket_resizing_operation.h"
 #include "type_definitions/hash_bucket_type_definition.h"
 #include "hash_table/hash_table_operation.h"
 #include <string.h>
 #include "hash/hash_functions.h"
+#include "hash_table/hash_bucket_operation.h"
+#include "sub_hash_table/sub_hash_table_operation.h"
+#include "utils/helper_functions.h"
+#include "hash_table/resizing/buffer_operation.h"
+#include "utils/memory_manager.h"
 
-void test_initialize_hash_bucket_resizing_sets_flags_and_snapshot(void) {
-    hash_bucket bucket = {0};
-    // Setup a dummy sub_hash_table_ptr
-    sub_hash_table_memory_pool dummy_table = {0};
-    bucket.sub_hash_table_ptr = &dummy_table;
-    bucket.is_resizing = false;
-
-    int result = initialize_hash_bucket_resizing(&bucket);
-    TEST_ASSERT_EQUAL(0, result);
-    TEST_ASSERT_TRUE(bucket.is_resizing);
-    TEST_ASSERT_EQUAL_PTR(&dummy_table, bucket.snapshot_sub_hash_table_ptr);
-    TEST_ASSERT_NULL(bucket.sub_hash_table_ptr);
+void mimic_hash_resizing_initialization(hash_bucket* bucket) {
+    bucket->is_resizing = true;
+    bucket->snapshot_sub_hash_table_ptr = bucket->sub_hash_table_ptr;
+    initialize_resizing_buffer(bucket);
+    create_new_sub_hash_table(bucket->sub_hash_table_config, true, &bucket->resizing_buffer_ptr->new_sub_hash_table_ptr);
+    bucket->sub_hash_table_ptr = NULL;
 }
 
+
 void test_upsert_node_to_hash_bucket_during_resizing_adds_to_pending(void) {
-    hash_bucket bucket = {0};
-    bucket.is_resizing = true;
+    hash_bucket* bucket = callocate_memory(1, sizeof(hash_bucket));
+    sub_hash_table_configuration config = { .is_concurrency_enabled = false, .bucket_size = 2, .max_linked_list_chain_length = 2 };
+    initialise_hash_bucket(bucket, config);
+    mimic_hash_resizing_initialization(bucket);
     key_value_pair kv = {"key", (unsigned char*)"value", 6};
-    int result = upsert_node_to_hash_bucket_during_resizing(&bucket, 123, &kv);
+    int result = upsert_node_to_hash_bucket_during_resizing(bucket, 123, &kv);
+    printf("Result of upsert during resizing: %d\n", result);
     TEST_ASSERT_TRUE(result == 11 || result == 0);
-    // Optionally check pending_list_head is not NULL
+    delete_resizing_buffer(bucket->resizing_buffer_ptr);
+    bucket->resizing_buffer_ptr = NULL;
+    cleanup_hash_bucket(bucket);
+    free_memory(bucket, false);
 }
 
 void test_delete_key_from_hash_bucket_during_resizing_adds_delete_to_pending(void) {
-    hash_bucket bucket = {0};
-    bucket.is_resizing = true;
-    int result = delete_key_from_hash_bucket_during_resizing(&bucket, "key", 123);
+    hash_bucket* bucket = callocate_memory(1, sizeof(hash_bucket));
+    sub_hash_table_configuration config = { .is_concurrency_enabled = false, .bucket_size = 2, .max_linked_list_chain_length = 2 };
+    initialise_hash_bucket(bucket, config);
+    mimic_hash_resizing_initialization(bucket);
+    int result = delete_key_from_hash_bucket_during_resizing(bucket, "key", 123);
+    printf("Result of delete during resizing: %d\n", result);
     TEST_ASSERT_TRUE(result == 0 || result == 11);
-    // Optionally check pending_list_head for a deleted node
+    delete_resizing_buffer(bucket->resizing_buffer_ptr);
+     bucket->resizing_buffer_ptr = NULL;
+    cleanup_hash_bucket(bucket);
+    free_memory(bucket, false);
 }
 
 void test_hash_table_resizing_trigger_and_data_integrity(void) {
@@ -43,13 +54,12 @@ void test_hash_table_resizing_trigger_and_data_integrity(void) {
         .bucket_size = 2,
         .is_concurrency_enabled = false,
         .sub_hash_table_bucket_size = 2,
-        .max_linked_list_chain_length = 4 // Low to trigger resizing
+        .max_linked_list_chain_length = 4
     };
     hash_table_memory_pool* table = NULL;
     int result = create_new_hash_table(config, &table);
     TEST_ASSERT_EQUAL(0, result);
 
-    // Insert enough keys to trigger resizing
     int resize_triggered = 0;
     for (int i = 0; i < 20; ++i) {
         char k[16];
@@ -62,14 +72,10 @@ void test_hash_table_resizing_trigger_and_data_integrity(void) {
         if (upsert_result == 20) resize_triggered = 1;
         TEST_ASSERT_TRUE(upsert_result == 0 || upsert_result == 10 || upsert_result == 20 || upsert_result == 11);
     }
-    
     TEST_ASSERT_TRUE(resize_triggered);
 
-    
-    // Wait for 2 seconds (Windows)
-    Sleep(2000);
+    portable_sleep_ms(2000);
 
-    // Check all keys are accessible after resizing
     for (int i = 0; i < 20; ++i) {
         char keybuf[16];
         sprintf(keybuf, "key%d", i);
@@ -78,6 +84,8 @@ void test_hash_table_resizing_trigger_and_data_integrity(void) {
         int get_result = get_key_value_from_hash_table(table, key_hash, keybuf, &out);
         TEST_ASSERT_EQUAL(0, get_result);
         TEST_ASSERT_EQUAL_STRING(keybuf, out.key);
+        if (out.key && out.key != keybuf) free(out.key);
+        if (out.value) free(out.value);
     }
 
     cleanup_hash_table(table);
@@ -85,7 +93,6 @@ void test_hash_table_resizing_trigger_and_data_integrity(void) {
 }
 
 void test_hash_table_delete_and_resize(void) {
-        
     hash_table_configuration config = {
         .bucket_size = 2,
         .is_concurrency_enabled = false,
@@ -102,7 +109,6 @@ void test_hash_table_delete_and_resize(void) {
     uint32_t key_hash = hash_function_murmur_32(key, 0);
     upsert_node_to_hash_table(table, key_hash, &kv);
 
-    // Insert more to trigger resize
     for (int i = 0; i < 30; ++i) {
         char k[16];
         unsigned char v[16];
@@ -116,12 +122,13 @@ void test_hash_table_delete_and_resize(void) {
     int del_result = delete_key_from_hash_table(table, key_hash, key);
     TEST_ASSERT_TRUE(del_result == 0 || del_result == 11);
 
-    // Wait for 2 seconds (Windows)
-    Sleep(2000);
+    portable_sleep_ms(2000);
 
     key_value_pair out = {0};
     int get_result = get_key_value_from_hash_table(table, key_hash, key, &out);
     TEST_ASSERT_TRUE(get_result == ERR_DATA_NODE_NOT_FOUND);
+    if (out.key) free(out.key);
+    if (out.value) free(out.value);
 
     cleanup_hash_table(table);
     free_memory(table, false);
@@ -156,14 +163,10 @@ void test_upsert_pending_vs_hash_during_resizing(void) {
         else count_other++;
     }
 
-    // Wait for 10 seconds (Windows)
-    Sleep(2000);
+    portable_sleep_ms(2000);
 
-    // At least some should go to hash and some to pending list if resizing is triggered
     TEST_ASSERT_TRUE(count_hash > 0);
     TEST_ASSERT_TRUE(count_pending > 0);
-    // Optionally print for debug
-    // printf("Hash: %d, Pending: %d, Other: %d\n", count_hash, count_pending, count_other);
 
     cleanup_hash_table(table);
     free_memory(table, false);
@@ -172,7 +175,6 @@ void test_upsert_pending_vs_hash_during_resizing(void) {
 int test_dynamic_resizing_main(void) {
     UNITY_BEGIN();
     printf("Running Dynamic Resizing Unit Tests...\n");
-    RUN_TEST(test_initialize_hash_bucket_resizing_sets_flags_and_snapshot);
     RUN_TEST(test_upsert_node_to_hash_bucket_during_resizing_adds_to_pending);
     RUN_TEST(test_delete_key_from_hash_bucket_during_resizing_adds_delete_to_pending);
     RUN_TEST(test_hash_table_resizing_trigger_and_data_integrity);

@@ -57,7 +57,8 @@ void test_upsert_and_get_node_sub_hash_table(void) {
     TEST_ASSERT_EQUAL(0, get_result);
     TEST_ASSERT_EQUAL_STRING("key", out.key);
     TEST_ASSERT_EQUAL_STRING("value", out.value);
-
+    if (out.key) free(out.key);
+    if (out.value) free(out.value);
     cleanup_sub_hash_table(table);
     free_memory(table, false);
 }
@@ -79,6 +80,8 @@ void test_upsert_duplicate_key_sub_hash_table(void) {
     TEST_ASSERT_EQUAL(0, get_result);
     TEST_ASSERT_EQUAL_STRING("dupkey", out.key);
     TEST_ASSERT_EQUAL_STRING("value2", out.value);
+    if (out.key) free(out.key);
+    if (out.value) free(out.value);
     cleanup_sub_hash_table(table);
     free_memory(table, false);
 }
@@ -94,6 +97,8 @@ void test_delete_key_from_sub_hash_table(void) {
     key_value_pair out = {0};
     int get_result = get_key_store_value_from_sub_hash_table(table, 123, "key", &out);
     TEST_ASSERT_LESS_THAN(0, get_result);
+    if (out.key) free(out.key);
+    if (out.value) free(out.value);
     cleanup_sub_hash_table(table);
     free_memory(table, false);
 }
@@ -164,11 +169,15 @@ void test_upsert_get_delete_edge_cases_sub_hash_table(void) {
     key_value_pair out = {0};
     res = get_key_store_value_from_sub_hash_table(table, 42, "delkey", &out);
     TEST_ASSERT_LESS_THAN(0, res);
+    if (out.key) free(out.key);
+    if (out.value) free(out.value);
     // Upsert after delete (re-insert same key)
     res = upsert_node_to_sub_hash_table(table, 42, &kv);
     TEST_ASSERT_TRUE(res == 0 || res == 10);
     res = get_key_store_value_from_sub_hash_table(table, 42, "delkey", &out);
     TEST_ASSERT_EQUAL(0, res);
+    if (out.key) free(out.key);
+    if (out.value) free(out.value);
     cleanup_sub_hash_table(table);
     free_memory(table, false);
 }
@@ -192,6 +201,10 @@ void test_hash_collision_handling_sub_hash_table(void) {
     TEST_ASSERT_EQUAL(0, r2);
     TEST_ASSERT_EQUAL_STRING("A", out1.key);
     TEST_ASSERT_EQUAL_STRING("B", out2.key);
+    if (out1.key) free(out1.key);
+    if (out1.value) free(out1.value);
+    if (out2.key) free(out2.key);
+    if (out2.value) free(out2.value);
     cleanup_sub_hash_table(table);
     free_memory(table, false);
 }

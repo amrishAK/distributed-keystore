@@ -9,7 +9,8 @@ typedef enum{
     RESIZE_INITIALIZE,
     RESIZE_UPSERT_NODE,
     RESIZE_GET_NODE,
-    RESIZE_DELETE_NODE
+    RESIZE_DELETE_NODE,
+    RESIZE_CHECK_STATUS
 } hash_bucket_resizing_operation_t;
 
 /** 
@@ -58,5 +59,14 @@ int get_key_value_from_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr,
  * @note If resizing has completed while waiting for the lock, it will delegate to the normal delete function.
 */
 int delete_key_from_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr, const char *key, uint32_t key_hash);
+
+/** 
+ * @fn wait_for_ongoing_resize_to_complete
+ * @brief Waits for any ongoing resizing operation on the hash bucket to complete.
+ * @param hash_bucket_ptr Pointer to the hash bucket.
+ * @return int Returns 0 on success, or a negative value on error.
+ * @note This function should be called when an operation detects that resizing is in progress and needs to wait for it to finish before proceeding.
+*/
+int check_resize_status(hash_bucket* hash_bucket_ptr);
 
 #endif // HASH_BUCKET_RESIZING_OPERATION_H

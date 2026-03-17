@@ -38,6 +38,8 @@ void test_upsert_and_get_key_value_from_hash_table(void) {
     TEST_ASSERT_EQUAL_INT(0, get_result);
     TEST_ASSERT_EQUAL_STRING(key, out.key);
     TEST_ASSERT_EQUAL_UINT8_ARRAY(value, out.value, out.value_size);
+    if (out.key) free(out.key);
+    if (out.value) free(out.value);
     cleanup_hash_table(table);
     free_memory(table, false);
 }
@@ -57,6 +59,8 @@ void test_delete_key_from_hash_table_should_remove_key(void) {
     key_value_pair out = {0};
     int get_result = get_key_value_from_hash_table(table, key_hash, key, &out);
     TEST_ASSERT_LESS_THAN_INT(0, get_result); // Should not find
+    if (out.key) free(out.key);
+    if (out.value) free(out.value);
     cleanup_hash_table(table);
     free_memory(table, false);
 }
@@ -68,6 +72,8 @@ void test_get_key_value_from_hash_table_should_fail_for_missing_key(void) {
     key_value_pair out = {0};
     int get_result = get_key_value_from_hash_table(table, 0x11111111, "notfound", &out);
     TEST_ASSERT_LESS_THAN_INT(0, get_result);
+    if (out.key) free(out.key);
+    if (out.value) free(out.value);
     cleanup_hash_table(table);
     free_memory(table, false);
 }

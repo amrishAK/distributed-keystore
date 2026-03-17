@@ -1,12 +1,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <time.h>
 #include "key_store.h"
 #include "hash/hash_functions.h"
 #include "utils/memory_manager.h"
 #include "utils/helper_functions.h"
 #include "hash_table/hash_table_operation.h"
+
+#ifdef _WIN32
+#include <time.h>
+#else
+#include <time.h>
+#endif
+
 
 #pragma region Private Global Variables
 static uint32_t g_hash_seed = 0;
@@ -115,7 +121,11 @@ int delete_key(const char *key)
 uint32_t _generate_hash_seed(void) 
 {
     // Simple seed generation using current time
+    #ifdef _WIN32
+    return (uint32_t)_time64(NULL);
+    #else
     return (uint32_t)time(NULL);
+    #endif
 }
 
 

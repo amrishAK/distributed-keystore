@@ -7,9 +7,9 @@
 #include <pthread.h>
 
 
-// Forward declaration for linked_list_node
+// Forward declaration for linked_list_node and double_linked_list_node
 typedef struct linked_list_node linked_list_node;
-
+typedef struct double_linked_list_node double_linked_list_node;
 
 #pragma region Data Structure Definitions
 
@@ -61,6 +61,30 @@ typedef struct linked_list_node
     data_node* data_node_ptr;
     linked_list_node* next_node_ptr;
 } linked_list_node;
+
+
+
+/**
+ * @struct double_linked_list_node
+ * @brief Represents a node in a doubly linked list.
+ *
+ * The double_linked_list_node structure is used for creating doubly linked lists,
+ * allowing traversal in both directions. Each node contains the key hash, a pointer
+ * to the associated data node, and pointers to the previous and next nodes in the list.
+ *
+ * Fields:
+ *   - key_hash: Hash of the key (immutable).
+ *   - data_node_ptr: Pointer to the associated data_node.
+ *   - prev_node_ptr: Pointer to the previous node in the list.
+ *   - next_node_ptr: Pointer to the next node in the list.
+ */
+typedef struct double_linked_list_node
+{
+    uint32_t key_hash;
+    data_node* data_node_ptr;
+    struct double_linked_list_node* prev_node_ptr;
+    struct double_linked_list_node* next_node_ptr;
+} double_linked_list_node;
 
 #pragma endregion
 
@@ -120,6 +144,40 @@ typedef struct memory_pool {
 
     pthread_mutex_t pool_lock; // Mutex for thread-safe access
 } memory_pool;
+
+/**
+ * @struct new_operation_buffer
+ * @brief Represents a buffer for new operations during resizing.
+ * The new_operation_buffer structure manages a doubly linked list of new operations
+ * that occur while a hash bucket is being resized. It includes pointers to the head of the
+ * list, the current consumer node, and a spinlock for thread-safe access.
+ * Fields:
+ *  - head_ptr: Pointer to the head of the doubly linked list of new operations.
+ *  - current_consumer_ptr: Pointer to the current consumer node in the list.
+ *  - buffer_lock: Spinlock for synchronizing access to the buffer.
+ * - pause_chasing: Flag to indicate if chasing should be paused (used for synchronization during resizing).
+ */
+typedef struct 
+{
+    double_linked_list_node* head_ptr;
+    double_linked_list_node* tail_ptr;
+    double_linked_list_node* current_consumer_ptr;
+    pthread_spinlock_t buffer_lock;
+    bool pause_chasing;
+    bool is_running;
+}new_operation_buffer;
+
+
+typedef struct{
+    char* key;
+    uint64_t hash;
+} delete_operation;
+
+typedef struct{
+    delete_operation* operations;
+    unsigned int count;
+    unsigned int capacity;
+} delete_operation_buffer;
 
 
 #endif // CUSTOM_TYPE_DEFINITIONS_H
