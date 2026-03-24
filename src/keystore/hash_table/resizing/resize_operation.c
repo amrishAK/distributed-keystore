@@ -33,8 +33,6 @@ int hash_bucket_resize_worker(void* input_arg)
     
     _perform_hash_bucket_resizing(hash_bucket_ptr, new_config, 3);
 
-    
-
     //acquire resizing lock
     pthread_mutex_lock(&hash_bucket_ptr->resizing_lock);
 
@@ -42,6 +40,7 @@ int hash_bucket_resize_worker(void* input_arg)
 
     
     delete_resizing_buffer(hash_bucket_ptr->resizing_buffer_ptr);
+    free_memory(hash_bucket_ptr->resizing_buffer_ptr, false);
     hash_bucket_ptr->resizing_buffer_ptr = NULL;
     hash_bucket_ptr->is_resizing = false;
     pthread_mutex_unlock(&hash_bucket_ptr->resizing_lock);
@@ -124,6 +123,7 @@ int _perform_hash_bucket_resizing(hash_bucket* hash_bucket_ptr, sub_hash_table_c
         // Cleanup on failure before retrying
         if(hash_bucket_ptr->resizing_buffer_ptr->new_sub_hash_table_ptr != NULL) {
             cleanup_sub_hash_table(hash_bucket_ptr->resizing_buffer_ptr->new_sub_hash_table_ptr);
+            free_memory(hash_bucket_ptr->resizing_buffer_ptr->new_sub_hash_table_ptr, false);
             hash_bucket_ptr->resizing_buffer_ptr->new_sub_hash_table_ptr = NULL;
         }
     }
@@ -240,10 +240,8 @@ int _append_list_nodes_to_sub_hash_table(linked_list_node* source_linked_list_he
             .value_size = current_node->data_node_ptr->data_size
         };
 
-        int result = upsert_node_to_sub_hash_table(sub_hash_table_ptr, current_node->key_hash, &kv_pair);
-        if (result != SUCCESS) {
-            return result; // Propagate error
-        }
+        int result = upsert_node_to_sub_hash_table(sub_hash_table_ptr, current_node->data_node_ptr->key_hash, &kv_pair);
+        if (result < SUCCESS) return result; // If any error occurs during upsert, return the error code
 
         current_node = current_node->next_node_ptr;
     }

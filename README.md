@@ -7,7 +7,7 @@ Distributed Keystore is a high-performance, concurrent, in-memory key-value stor
 - Two-level hash table: hash table → hash bucket → sub-hash-table → sub-hash-bucket → linked list → data node
 - Fine-grained locking: per-bucket `pthread_rwlock_t`, per-data-node `pthread_mutex_t`
 - Lock-free resize signalling: `pthread_spinlock_t` for chase buffer
-- MurmurHash3 (32-bit, seeded) for key hashing
+- Dual-seed MurmurHash3 (64-bit) for independent bucket and sub-bucket routing
 - Optional memory pool for `linked_list_node` pre-allocation
 - Background chase buffer worker for concurrent resize data migration
 
@@ -44,7 +44,7 @@ Distributed Keystore is a high-performance, concurrent, in-memory key-value stor
 
 The keystore is built from modular components for speed, scalability, and safety:
 
-- **Hash Table:** Top-level structure, maps keys to hash buckets using MurmurHash3 (32-bit, seeded).
+- **Hash Table:** Top-level structure, maps keys to hash buckets using MurmurHash3 (64-bit). Each key produces a `composite_key_hash` with separate `bucket_hash` and `sub_bucket_hash` computed from two independent seeds.
 - **Hash Buckets:** Each bucket points to a sub-hash table. During resizing, a snapshot and chase buffer are used for safe migration.
 - **Sub-Hash Tables:** Further divide the key space within each bucket, reducing collisions and supporting dynamic resizing. Bucket index is a bitmask (`key_hash & (total_blocks - 1)`).
 - **Sub-Hash Buckets:** Each contains a linked list of data nodes. Per-bucket `pthread_rwlock_t` ensures thread safety. Resizing is triggered when the chain exceeds a set limit.
@@ -54,8 +54,8 @@ The keystore is built from modular components for speed, scalability, and safety
 - **Memory Pool:** Pre-allocated arena for `linked_list_node` (thread-safe). Falls back to malloc if exhausted.
 
 **Operation Flow:**
-1. Key is hashed (MurmurHash3) to find the correct hash bucket.
-2. Bucket points to a sub-hash table (or, during resizing, a snapshot + chase buffer).
+1. Key is hashed twice (MurmurHash3-64 with two independent seeds) to produce a `composite_key_hash` containing `bucket_hash` and `sub_bucket_hash`.
+2. `bucket_hash` routes to the correct hash bucket; `sub_bucket_hash` routes within the sub-hash table.
 3. Sub-hash table/bucket is searched for the key.
 4. Data nodes store the actual key-value pairs, protected by per-node mutex locks for safe concurrent updates.
 
@@ -67,8 +67,14 @@ The keystore is built from modular components for speed, scalability, and safety
 
 **Concurrency Model:**
 - `hash_bucket.resizing_lock` (pthread_mutex_t) guards all resize state transitions.
-- `sub_hash_bucket.sub_hash_bucket_lock` (pthread_rwlock_t) for per-bucket operations.
-- `data_node.lock` (pthread_mutex_t) for per-key updates.
+- `sub_hash_bucket.sub_hash_bucket_lock` (pthread_rwlock_t) guards linked list structure only (traversal, insert, list-level cleanup).
+- `data_node.lock` (pthread_mutex_t) guards per-node value access — acquired **after** the sub-bucket rwlock is released.
+
+The two locks operate in **sequential phases, never held simultaneously**:
+- **Phase 1 (rwlock):** acquire → traverse list → capture node pointer → **release**
+- **Phase 2 (node mutex):** acquire → check `is_deleted` → read/write value or soft-delete → **release**
+
+Releasing the rwlock before acquiring the node mutex allows threads targeting *different nodes within the same sub-bucket* to run Phase 2 in parallel, beyond what a single rwlock would permit. The `is_deleted` flag (checked under the node mutex) closes the use-after-free race in the window between rwlock release and node mutex acquisition: a concurrent DELETE sets `is_deleted = true` under the node mutex before unlinking the node, so any reader hitting the same node in that window returns `ERR_DATA_NODE_NOT_FOUND` rather than accessing freed memory.
 
 **Key Invariants:**
 - `snapshot_sub_hash_table_ptr` is read-only during resize.
@@ -94,7 +100,7 @@ examples/
 
 tests/for_c/
     unit_tests/         — Unity-based unit tests (one file per module)
-    integration_test/   — Concurrency stress test (120 threads × 150 keys)
+    integration_test/   — Concurrency stress test (2,000 threads × 2,000 keys, 8M ops)
     include/            — Unity test framework source
     Makefile            — Targets: test, valgrind-test, coverage, run-concurrency-test, run-ct-valgrind
 ```
@@ -126,7 +132,7 @@ Builds the test binary without coverage instrumentation and runs it under Valgri
 make run-concurrency-test
 ```
 
-Compiles and runs the concurrency stress test in `integration_test/concurrency_test.c`. The test spawns 120 threads × 150 keys (18K total ops) and reports missing keys, p50/p99 latencies, throughput, and race errors after concurrent set/get operations.
+Compiles and runs the concurrency stress test in `integration_test/concurrency_test.c`. The test spawns 2,000 threads × 2,000 keys (8M total ops) and reports missing keys, p50/p99 latencies, throughput, and race errors after concurrent set/get operations.
 
 ### Run Concurrency Test Under Valgrind
 
@@ -153,9 +159,19 @@ Run `make help` to see all available targets.
 
 ```
 Starting concurrency stress test...
-Total threads: 120
-Number of keys per thread: 150
+Test scenario: Bucket-level concurrency with 2000 threads each setting/getting 2000 unique keys.
+==== Concurrency Test Report ====
+Initialization: bucket_size=1024, sub_bucket_size=1024, max_chain_length=15, concurrency_enabled=true
+Total threads: 2000
+Number of keys per thread: 2000
+Set operations: 4000000, Get operations: 4000000
+Total ops: 8000000
+Total time: 1.862s
+Throughput: 4295904.57 ops/sec
+SET latency (ns): avg=3565, p50=1107, p95=3122, p99=9466
+GET latency (ns): avg=1130, p50=302, p95=604, p99=4330
 Key missing after set (bucket-level concurrency): 0
+Number of resizings triggered: 7
 Result: PASS
 ```
 
@@ -175,13 +191,22 @@ All functions return explicit error or success codes. See [ERROR_CODES.md](./ERR
 | 10    | SUCESS_ADDED_NEW_NODE | New node inserted |
 | 20    | SUCESS_ADDED_NEW_NODE_RESZING_TRIGGERED | New node inserted, resize triggered |
 
+## Hashing
+
+The keystore uses **MurmurHash3 (64-bit)** with two independent per-instance seeds generated via `clock_gettime(CLOCK_MONOTONIC)`. The two seeds are guaranteed distinct by XOR-ing the second with the golden-ratio constant `0x9e3779b97f4a7c15`. Each key produces a `composite_key_hash`:
+
+- `bucket_hash` — routes to the top-level hash bucket (`bucket_hash % total_buckets`)
+- `sub_bucket_hash` — routes within the sub-hash table (`sub_bucket_hash & (sub_buckets - 1)`)
+
+This dual-hash design eliminates the correlation between level-1 and level-2 routing that existed when a single hash was split across both levels, improving key distribution under load.
+
 ## Known Design Notes & Caveats
 
-1. **Soft-delete semantics:** Delete operations mark `data_node.is_deleted = true`. Physical removal happens only during `cleanup_deleted_linked_list_nodes` (resize or explicit cleanup). `active_node_count` tracks live nodes; `total_node_count` includes soft-deleted.
+1. **Soft-delete semantics:** Delete operations mark `data_node.is_deleted = true` under the node mutex. Physical removal happens only during `cleanup_deleted_linked_list_nodes` (triggered at resize or chain-length threshold, under a WRITE rwlock). `active_node_count` tracks live nodes; `total_node_count` includes soft-deleted. The `is_deleted` flag also closes the use-after-free race in the window between rwlock release and node mutex acquisition — see Concurrency Model above.
 2. **Resize only doubles:** The resize strategy always multiplies `bucket_size × 2`. No shrinking implemented.
 3. **Memory pool scope:** Only `linked_list_node` allocations use the pre-allocated pool. `data_node`, `double_linked_list_node`, and management structs use standard `malloc`/`calloc`.
 4. **`free_memory` pool flag:** Nearly all callers pass `is_pool = false`; only the memory manager itself uses `is_pool = true` internally via `_free_memory_to_pool`.
-5. **`key_hash == 0` treated as invalid:** `_get_hash_table_bucket` and `_get_sub_hash_table_bucket` reject `key_hash == 0`. Keys that naturally hash to 0 would fail. `UINT32_MAX` is the murmur error sentinel.
+5. **`key_hash == 0` treated as invalid:** `_get_hash_table_bucket` and `_get_sub_hash_table_bucket` reject `key_hash == 0`. Keys that naturally hash to 0 would fail. `UINT64_MAX` is the murmur error sentinel.
 6. **No WAL / persistence:** v1.0 is fully in-memory. WAL stubs are reserved for v2.0 (marked `/* WAL: v2.0 */`).
 7. **Background task registry capacity:** Hard-coded at 100. Overflow may cause silent failures in extreme concurrency scenarios.
 8. **Debug traces:** `printf` debug traces are present throughout; should be removed or guarded for production.
@@ -196,12 +221,12 @@ All functions return explicit error or success codes. See [ERROR_CODES.md](./ERR
 - [x] Full CRUD (create/read/update/delete with soft-delete)
 - [x] Memory pool for linked list nodes
 - [x] Background resize worker (doubles sub-table bucket size)
-- [ ] Stress test: 120 threads × 150 keys (current config; previously 1000×1000)
+- [x] Stress test: 2,000 threads × 2,000 keys — 8M ops, 4.3M ops/s, 7 resizes, 0 data loss
 - [x] Unity unit tests across all modules
-- [ ] Valgrind clean confirmed (needs re-run)
+- [x] Valgrind clean confirmed (630/630 allocs/frees, 0 leaks, 0 errors — unit; 24M/24M — integration)
 - [ ] `printf` debug output removed / guarded
 - [ ] `key_hash == 0` guard reviewed (edge case for some key strings)
-- [ ] Generate 2 hash for hash table and sub hash table to improve the distribution
+- [x] Generate 2 hash for hash table and sub hash table to improve the distribution
 - [ ] User finer locks for resizing
 - [ ] Refactor back ground task manager with lazy memory pool
 - [ ] Refactor Memory pool
@@ -214,8 +239,10 @@ All functions return explicit error or success codes. See [ERROR_CODES.md](./ERR
 
 ## License
 
-MIT
+Apache 2.0 — see [LICENSE](./LICENSE) for full terms.
+
+Copyright 2026 Amrish Arunachalam Kulasekaran
 
 ## Author
 
-amrishAK
+Amrish Arunachalam Kulasekaran (amrishAK)

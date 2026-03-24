@@ -21,13 +21,13 @@ typedef enum {
  * This function allocates memory for a new data_node, initializes it with the provided
  * key hash, key, and value, and sets up concurrency control if enabled.
  *
- * @param key_hash The hash value of the key to be stored in the new node.
+ * @param key_hash Composite hash value of the key to be stored in the node, The composite key contains both bucket hash and sub bucket hash of the key.
  * @param kv_pair Pointer to the key_value_pair containing the key and value data.
  * @param is_concurrency_enabled Boolean flag indicating if concurrency control should be enabled.
  * @param new_data_node_out Pointer to receive the newly created data_node.
  * @return int Returns 0 on success, or a negative value on failure.
  */
-int create_new_data_node(uint32_t key_hash, key_value_pair* kv_pair, bool is_concurrency_enabled, data_node** new_data_node_out);
+int create_new_data_node(composite_key_hash key_hash, key_value_pair* kv_pair, bool is_concurrency_enabled, data_node** new_data_node_out);
 
 /**
  * @fn delete_data_node

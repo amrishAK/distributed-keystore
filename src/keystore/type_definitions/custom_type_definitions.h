@@ -14,6 +14,24 @@ typedef struct double_linked_list_node double_linked_list_node;
 #pragma region Data Structure Definitions
 
 /**
+ * @struct composite_key_hash
+ * @brief Represents a composite hash for a key, combining both bucket and sub-bucket hashes.
+ *
+ * This structure is used to efficiently identify the location of a key within the hash table,
+ * especially during resizing operations. It contains the hash of the key for the main bucket
+ * and the hash for the sub-bucket, allowing for quick comparisons and lookups.
+ *
+ * Fields:
+ *   - bucket_hash: Hash of the key used to determine the main bucket index.
+ *   - sub_bucket_hash: Hash of the key used to determine the sub-bucket index within the main bucket.
+*/
+typedef struct
+{
+    uint64_t bucket_hash;
+    uint64_t sub_bucket_hash;
+} composite_key_hash;
+
+/**
  * @struct data_node
  * @brief Represents a key-value entry in the distributed keystore.
  *
@@ -31,7 +49,7 @@ typedef struct double_linked_list_node double_linked_list_node;
  */
 typedef struct data_node
 {
-    uint32_t key_hash;
+    composite_key_hash key_hash;
     unsigned char *data;
     size_t data_size;
     bool is_concurrency_enabled;
@@ -50,14 +68,14 @@ typedef struct data_node
  * and a pointer to the next node in the list.
  *
  * Fields:
- *   - key_hash: Hash of the key (immutable).
+ *   - key_hash: Hash of the key (immutable) - This is the sub-bucket hash of the key, taken from the composite_key_hash structure.
  *   - count: Number of data nodes in this linked list chain.
  *   - data_node_ptr: Pointer to the associated data_node.
  *   - next_node: Pointer to the next linked_list_node in the chain.
  */
 typedef struct linked_list_node
 {
-    uint32_t key_hash;
+    uint64_t key_hash;
     data_node* data_node_ptr;
     linked_list_node* next_node_ptr;
 } linked_list_node;
@@ -73,14 +91,14 @@ typedef struct linked_list_node
  * to the associated data node, and pointers to the previous and next nodes in the list.
  *
  * Fields:
- *   - key_hash: Hash of the key (immutable).
+ *   - key_hash: Hash of the key (immutable) - This is the sub-bucket hash of the key, taken from the composite_key_hash structure.
  *   - data_node_ptr: Pointer to the associated data_node.
  *   - prev_node_ptr: Pointer to the previous node in the list.
  *   - next_node_ptr: Pointer to the next node in the list.
  */
 typedef struct double_linked_list_node
 {
-    uint32_t key_hash;
+    uint64_t key_hash;
     data_node* data_node_ptr;
     struct double_linked_list_node* prev_node_ptr;
     struct double_linked_list_node* next_node_ptr;
@@ -167,12 +185,36 @@ typedef struct
     bool is_running;
 }new_operation_buffer;
 
-
+/**
+ * @struct delete_operation
+ * @brief Represents a delete operation for a key in the keystore.
+ *
+ * The delete_operation structure encapsulates the information needed to perform a delete operation,
+ * including the key to be deleted and its associated hash. This structure is used in the context of
+ * managing delete operations during resizing or cleanup processes.
+ *
+ * Fields:
+ *   - key: Pointer to the null-terminated string representing the key to be deleted.
+ *   - key_hash: Hash of the key (immutable) - This is the sub-bucket hash of the key, taken from the composite_key_hash structure.
+ */
 typedef struct{
     char* key;
-    uint64_t hash;
+    composite_key_hash key_hash;
 } delete_operation;
 
+/*
+* @struct delete_operation_buffer
+* @brief Represents a buffer for delete operations during resizing.
+*
+* The delete_operation_buffer structure manages a dynamic array of delete operations that need to be processed,
+* particularly during resizing of hash buckets. It includes an array of delete operations, the count
+* of operations currently in the buffer, and the capacity of the buffer to manage memory efficiently.
+*
+* Fields:
+*   - operations: Pointer to an array of delete_operation structures representing the delete operations to be processed.
+*   - count: The current number of delete operations stored in the buffer.
+*   - capacity: The total capacity of the buffer, indicating how many delete operations it can hold before needing to resize.
+*/
 typedef struct{
     delete_operation* operations;
     unsigned int count;

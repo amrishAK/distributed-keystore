@@ -4,31 +4,35 @@
 #include "hash_table/resizing/hash_bucket_resizing_operation.h"
 #include "hash_table/resizing/buffer_operation.h"
 #include "utils/memory_manager.h"
+#include "utils/helper_functions.h"
 #include "data_structures/linked_list_operation.h"
 #include <stdio.h>
 #include <stdlib.h>
 
 #pragma region Private Function Definitions
-int _resizing_lock_wrapper_for_hash_bucket_operation(hash_bucket_resizing_operation_t operation_type, hash_bucket* hash_bucket_ptr, const char *key, uint32_t key_hash, key_value_pair* kv_pair_out);
+int _resizing_lock_wrapper_for_hash_bucket_operation(hash_bucket_resizing_operation_t operation_type, hash_bucket* hash_bucket_ptr, const char *key, composite_key_hash key_hash, key_value_pair* kv_pair_out);
 #pragma endregion
 
 
 int initialise_hash_bucket(hash_bucket* hash_bucket_ptr, sub_hash_table_configuration sub_hash_table_config)
 {
     if (hash_bucket_ptr == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
-
     if(hash_bucket_ptr->is_initialized) return 0; // Already initialized
 
+    // Initialize sub-hash-table for the hash bucket
     sub_hash_table_memory_pool* sub_hash_table_ptr = NULL;
     int init_result = create_new_sub_hash_table(sub_hash_table_config, true, &sub_hash_table_ptr);
     if (init_result != 0) return  init_result; // Error handling: failed to initialize sub-hash-table
 
+    // Initialize resizing lock for the hash bucket
     init_result = pthread_mutex_init(&hash_bucket_ptr->resizing_lock, NULL);
+    
     if (init_result != 0) {
         cleanup_sub_hash_table(sub_hash_table_ptr);
         return ERR_RESOURCE_INIT_FAILED; // Error handling: failed to initialize mutex
     }
 
+    // Set up hash bucket properties
     hash_bucket_ptr->sub_hash_table_ptr = sub_hash_table_ptr;
     hash_bucket_ptr->snapshot_sub_hash_table_ptr = NULL;
     hash_bucket_ptr->resizing_buffer_ptr = NULL;
@@ -37,24 +41,22 @@ int initialise_hash_bucket(hash_bucket* hash_bucket_ptr, sub_hash_table_configur
     hash_bucket_ptr->is_initialized = true;
     hash_bucket_ptr->sub_hash_table_config = sub_hash_table_config;
     
-    return 0;
+    return SUCCESS;
 }
 
 int cleanup_hash_bucket(hash_bucket* hash_bucket_ptr)
 {
-    if (hash_bucket_ptr == NULL || !hash_bucket_ptr->is_initialized) return 0; // Nothing to clean up
+    if (hash_bucket_ptr == NULL) return SUCCESS; // Nothing to clean up
     
     // Wait for any ongoing resizing operation to finish before cleaning up
     while (hash_bucket_ptr->is_resizing) 
     {
-        int resize_status = _resizing_lock_wrapper_for_hash_bucket_operation(RESIZE_CHECK_STATUS, hash_bucket_ptr, NULL, 0, NULL);
-        if (resize_status != 21) {
-            break; // Exit the loop if resizing is not in progress
-        }
-        usleep(100); // Sleep for a short duration before checking again to avoid busy waiting
+        int resize_status = _resizing_lock_wrapper_for_hash_bucket_operation(RESIZE_CHECK_STATUS, hash_bucket_ptr, NULL, (composite_key_hash){0}, NULL);
+        if (resize_status != 21) break; // Exit the loop if resizing is not in progress
+        // Sleep for a short duration to avoid busy waiting
+        portable_sleep_ms(10);
     }
     
-
     // Clean up current sub-hash-table
     if(hash_bucket_ptr->sub_hash_table_ptr != NULL) {
         cleanup_sub_hash_table(hash_bucket_ptr->sub_hash_table_ptr);
@@ -76,17 +78,21 @@ int cleanup_hash_bucket(hash_bucket* hash_bucket_ptr)
         hash_bucket_ptr->resizing_buffer_ptr = NULL;
     }
 
-    pthread_mutex_destroy(&hash_bucket_ptr->resizing_lock);
-
+    // Destroy resizing lock
+    if(hash_bucket_ptr->is_initialized) {
+        pthread_mutex_destroy(&hash_bucket_ptr->resizing_lock);
+    }
+    
+    // Reset hash bucket properties
     hash_bucket_ptr->node_count = 0;
     hash_bucket_ptr->is_resizing = false;
     hash_bucket_ptr->is_initialized = false;
 
-    return 0;
+    return SUCCESS;
 }
 
 
-int upsert_node_to_hash_bucket(hash_bucket* hash_bucket_ptr, uint32_t key_hash, key_value_pair* kv_pair)
+int upsert_node_to_hash_bucket(hash_bucket* hash_bucket_ptr, composite_key_hash key_hash, key_value_pair* kv_pair)
 {
     int result = 0;
     if (hash_bucket_ptr == NULL || kv_pair == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
@@ -104,19 +110,16 @@ int upsert_node_to_hash_bucket(hash_bucket* hash_bucket_ptr, uint32_t key_hash, 
         result = _resizing_lock_wrapper_for_hash_bucket_operation(RESIZE_UPSERT_NODE, hash_bucket_ptr, NULL, key_hash, kv_pair);
     }
 
-    if(result == 20)
+    if(result == SUCESS_ADDED_NEW_NODE_RESZING_TRIGGERED)
     {   
-        int re_result = _resizing_lock_wrapper_for_hash_bucket_operation(RESIZE_INITIALIZE, hash_bucket_ptr, NULL, 0, NULL);
-
-        if(re_result != SUCCESS) {
-            return re_result; // Propagate error
-        }
+        int re_result = _resizing_lock_wrapper_for_hash_bucket_operation(RESIZE_INITIALIZE, hash_bucket_ptr, NULL, (composite_key_hash){0}, NULL);
+        if(re_result != SUCCESS) return re_result; // Propagate error if resizing initialization failed
     }
     
     return result;
 }
 
-int get_key_value_from_hash_bucket(hash_bucket* hash_bucket_ptr, const char* key, uint32_t key_hash, key_value_pair* kv_pair_out)
+int get_key_value_from_hash_bucket(hash_bucket* hash_bucket_ptr, const char* key, composite_key_hash key_hash, key_value_pair* kv_pair_out)
 {
     if (hash_bucket_ptr == NULL || kv_pair_out == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
@@ -134,7 +137,7 @@ int get_key_value_from_hash_bucket(hash_bucket* hash_bucket_ptr, const char* key
     }
 }
 
-int delete_key_from_hash_bucket(hash_bucket* hash_bucket_ptr, const char* key, uint32_t key_hash)
+int delete_key_from_hash_bucket(hash_bucket* hash_bucket_ptr, const char* key, composite_key_hash key_hash)
 {
     if (hash_bucket_ptr == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
@@ -152,7 +155,7 @@ int delete_key_from_hash_bucket(hash_bucket* hash_bucket_ptr, const char* key, u
 
 #pragma region Private Function Definitions
 
-int _resizing_lock_wrapper_for_hash_bucket_operation(hash_bucket_resizing_operation_t operation_type, hash_bucket* hash_bucket_ptr, const char *key, uint32_t key_hash, key_value_pair* kv_pair_out)
+int _resizing_lock_wrapper_for_hash_bucket_operation(hash_bucket_resizing_operation_t operation_type, hash_bucket* hash_bucket_ptr, const char *key, composite_key_hash key_hash, key_value_pair* kv_pair_out)
 {
     int lock_result = pthread_mutex_lock(&hash_bucket_ptr->resizing_lock);
     if (lock_result != 0) return ERR_MUTEX_LOCK_ACQUIRE_FAILED; // Error handling: failed to acquire lock

@@ -1,6 +1,6 @@
 # Distributed KeyStore — Architecture Guide
 
-> **Version:** v1.0 (Chase) | **Tag:** Dynamic resizing with chase buffer &nbsp;|&nbsp; **Language:** C11 &nbsp;|&nbsp; **Last Updated:** 2026-03-17
+> **Version:** v1.0 (Chase) | **Tag:** Dynamic resizing with chase buffer &nbsp;|&nbsp; **Language:** C11 &nbsp;|&nbsp; **Last Updated:** 2026-03-23
 
 ---
 
@@ -36,13 +36,13 @@ The Distributed KeyStore is a **concurrent, in-memory key-value store** written 
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                     PUBLIC API (key_store.c)                    │
-│         Validates input → MurmurHash3 → Routes to bucket        │
+│    Validates input → Dual MurmurHash3-64 → Routes to bucket     │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                 HASH TABLE (hash_table_operation.c)             │
-│          bucket_index = key_hash % total_buckets                │
+│          bucket_index = bucket_hash % total_buckets             │
 │   ┌──────────┬──────────┬──────────┬───────┬──────────┐         │
 │   │ Bucket 0 │ Bucket 1 │ Bucket 2 │  ...  │ Bucket N │         │
 │   └────┬─────┴────┬─────┴────┬─────┴───────┴────┬─────┘         │
@@ -58,7 +58,7 @@ The Distributed KeyStore is a **concurrent, in-memory key-value store** written 
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │           SUB-HASH-TABLE (sub_hash_table_operation.c)           │
-│          sub_index = key_hash & (sub_buckets - 1)               │
+│        sub_index = sub_bucket_hash & (sub_buckets - 1)          │
 │   ┌────────────┬────────────┬────────────┬────────────┐         │
 │   │ Sub-Bkt 0  │ Sub-Bkt 1  │ Sub-Bkt 2  │ Sub-Bkt M  │         │
 │   └─────┬──────┴─────┬──────┴─────┬──────┴─────┬──────┘         │
@@ -108,7 +108,7 @@ src/keystore/
 │
 ├── hash/                          ◄── Hashing engine
 │   ├── hash_functions.h
-│   └── hash_functions.c               MurmurHash3 32-bit
+│   └── hash_functions.c               MurmurHash3 64-bit
 │
 ├── hash_table/                    ◄── Level-1 hash table
 │   ├── hash_table_operation.h/c       Table-wide routing
@@ -154,13 +154,14 @@ src/keystore/
          ▼
   ┌──────────────────────────────┐
   │ 1. Validate inputs           │  key != NULL, value != NULL
-  │ 2. Hash the key              │  MurmurHash3(key, g_hash_seed)
-  │ 3. Validate hash             │  hash != UINT32_MAX
+  │ 2. Hash the key (dual seeds) │  MurmurHash3-64(key, g_bucket_hash_seed)
+  │                              │  MurmurHash3-64(key, g_sub_bucket_hash_seed)
+  │ 3. Validate hashes           │  hash != UINT64_MAX
   └──────────┬───────────────────┘
              │
              ▼
   ┌──────────────────────────────┐
-  │ 4. Route to hash bucket      │  index = hash % total_buckets
+  │ 4. Route to hash bucket      │  index = bucket_hash % total_buckets
   │    hash_table_operation.c    │
   └──────────┬───────────────────┘
              │
@@ -171,10 +172,9 @@ src/keystore/
   │    is_resizing == false?                                 │
   │    ├── YES → Direct upsert to sub-hash-table             │
   │    │         Return code == 20 (resize triggered)?       │
-  │    │         ├── YES → Acquire resizing_lock             │
   │    │         │         initialize_hash_bucket_resizing() │
   │    │         │         Release resizing_lock             │
-  │    │         └── NO  → Done ✓                            │
+  │    │         └── NO → Done ✓                             │
   │    │                                                     │
   │    └── NO  → Acquire resizing_lock                       │
   │              upsert_during_resizing()                    │
@@ -184,7 +184,7 @@ src/keystore/
              ▼
   ┌──────────────────────────────────────────────────────────┐
   │ 6. Sub-hash-table routing (sub_hash_table_operation.c)   │
-  │    sub_index = hash & (sub_buckets - 1)   [bitmask]      │
+  │sub_index = sub_bucket_hash & (sub_buckets - 1) [bitmask] │
   │                                                          │
   │    Try update_node_in_sub_hash_bucket(sub_bucket)        │
   │    ├── Found  → Lock data_node.mutex → edit value → Done │
@@ -225,13 +225,19 @@ src/keystore/
              │
              ▼
   ┌──────────────────────────────────────────────────┐
-  │ 4. Sub-hash-bucket read path                     │
+  │ 4. Sub-hash-bucket read path (two phases)        │
+  │                                                  │
+  │  Phase 1 — list traversal (rwlock scope):        │
   │    Acquire sub_bucket READ lock                  │
   │    Walk linked list → match hash + strcmp(key)   │
+  │    Capture data_node pointer                     │
+  │    Release sub_bucket READ lock  ◄── released    │
+  │                                                  │
+  │  Phase 2 — value access (node mutex scope):      │
   │    Acquire data_node MUTEX                       │
+  │    Check is_deleted → if true: NOT_FOUND         │
   │    Copy value → allocate output buffers          │
   │    Release data_node MUTEX                       │
-  │    Release sub_bucket READ lock                  │
   └──────────────────────────────────────────────────┘
 ```
 
@@ -241,20 +247,23 @@ src/keystore/
   Client calls delete_key("mykey")
          │
          ▼
-  ┌──────────────────────────────────────────────────┐
-  │ 1. Validate + Hash + Route to bucket             │
-  │ 2. is_resizing?                                  │
-  │    ├── NO  → Direct soft-delete                  │
-  │    │   Acquire sub_bucket READ lock              │
-  │    │   Find node → Acquire data_node MUTEX       │
-  │    │   Set is_deleted = true                     │
-  │    │   Decrement active_node_count               │
-  │    │   Release locks                             │
-  │    └── YES → Acquire resizing_lock               │
-  │              Record in delete_operation_buffer   │
-  │              or mark in new_operation_buffer     │
-  │              Release resizing_lock               │
-  └──────────────────────────────────────────────────┘
+  ┌───────────────────────────────────────────────────┐
+  │ 1. Validate + Hash + Route to bucket              │
+  │ 2. is_resizing?                                   │
+  │    ├── NO  → Direct soft-delete (two phases)      │
+  │    │   Phase 1: Acquire sub_bucket READ lock      │
+  │    │   Find node → Capture data_node pointer      │
+  │    │   Release sub_bucket READ lock  ◄── released │
+  │    │   Phase 2: Acquire data_node MUTEX           │
+  │    │   Check is_deleted (concurrent-delete guard) │
+  │    │   Set is_deleted = true                      │
+  │    │   Decrement active_node_count                │
+  │    │   Release data_node MUTEX                    │
+  │    └── YES → Acquire resizing_lock                │
+  │              Record in delete_operation_buffer    │
+  │              or mark in new_operation_buffer      │
+  │              Release resizing_lock                │
+  └───────────────────────────────────────────────────┘
 ```
 
 ---
@@ -305,11 +314,11 @@ The keystore uses a **two-level hashing scheme** to achieve both stable top-leve
 ### Index Calculation
 
 ```
-Level 1 (Hash Table):     bucket_index = key_hash % total_buckets     ← modulo
-Level 2 (Sub-Hash-Table): sub_index    = key_hash & (total_sub - 1)   ← bitmask (power-of-2)
+Level 1 (Hash Table):     bucket_index = bucket_hash     % total_buckets     ← modulo
+Level 2 (Sub-Hash-Table): sub_index    = sub_bucket_hash & (total_sub - 1)   ← bitmask (power-of-2)
 ```
 
-The Level-1 table uses **modulo** to allow arbitrary bucket counts. The Level-2 sub-tables require **power-of-2** sizes, enabling fast bitmask indexing and clean doubling on resize.
+The Level-1 table uses **modulo** to allow arbitrary bucket counts. The Level-2 sub-tables require **power-of-2** sizes, enabling fast bitmask indexing and clean doubling on resize. Level-1 and Level-2 each use an **independent hash** (from separate MurmurHash3-64 seeds), ensuring uncorrelated bucket distribution across levels.
 
 ---
 
@@ -350,7 +359,7 @@ hash_table_memory_pool
         └── next_node_ptr → (next LLN or NULL) │
                                                │
         data_node  ◄───────────────────────────┘
-        ├── key_hash            (uint32_t, immutable)
+        ├── key_hash            (composite_key_hash, immutable)
         ├── data                (unsigned char*, heap-allocated value)
         ├── data_size           (size_t)
         ├── is_deleted          (bool, soft-delete flag)
@@ -365,7 +374,7 @@ hash_table_memory_pool
 │                        data_node (heap)                         │
 ├──────────────┬─────────────┬───────────┬───────────┬────────────┤
 │  key_hash    │  data ──────┼──► [val]  │ data_size │ is_deleted │
-│  (4 bytes)   │  (ptr)      │   (heap)  │ (8 bytes) │  (1 byte)  │
+│  (16 bytes)  │  (ptr)      │   (heap)  │ (8 bytes) │  (1 byte)  │
 ├──────────────┴─────────────┴───────────┴───────────┴────────────┤
 │  is_concurrency_enabled (1 byte)  │  lock (pthread_mutex_t)     │
 ├───────────────────────────────────┴─────────────────────────────┤
@@ -380,46 +389,51 @@ The `key` is embedded directly in the `data_node` struct via a **C99 flexible ar
 
 ## 6. Hashing Strategy
 
-The keystore uses **MurmurHash3 (32-bit)** with a random per-instance seed.
+The keystore uses **MurmurHash3 (64-bit)** with two independent random per-instance seeds.
 
 ```
 ┌───────────────────────────────────────────────────────────┐
-│                    MurmurHash3 Pipeline                   │
+│                MurmurHash3-64 Pipeline                    │
 │                                                           │
-│  Input: key (string) + seed (uint32_t from time(NULL))    │
+│Input: key (string) + seed (uint64_t from CLOCK_MONOTONIC) │
 │                                                           │
 │  ┌─────────┐    ┌──────────────┐    ┌──────────────┐      │ 
-│  │ Process  │    │  Process     │    │  Finalize    │     │
-│  │ 4-byte   ├───►│  tail bytes  ├───►│  (avalanche) │     │
-│  │ blocks   │    │  (0-3 bytes) │    │              │     │
+│  │ Process │    │  Process     │    │  Finalize    │      │
+│  │ 8-byte  ├───►│  tail bytes  ├───►│  (avalanche) │      │
+│  │ blocks  │    │  (0-7 bytes) │    │              │      │
 │  └─────────┘    └──────────────┘    └──────┬───────┘      │
 │                                            │              │
-│  Mix constants:  0xcc9e2d51, 0x1b873593    │              │
-│  Avalanche:      0x85ebca6b, 0xc2b2ae35    │              │
+│  Mix constants:  0x87c37b91114253d5,       │              │
+│                  0x4cf5ad432745937f        │              │
+│  Avalanche:      0xff51afd7ed558ccd,       │              │
+│                  0xc4ceb9fe1a85ec53        │              │
 │                                            ▼              │
 │                                     ┌────────────┐        │
-│                                     │  uint32_t  │        │
+│                                     │  uint64_t  │        │
 │                                     │   hash     │        │
 │                                     └────────────┘        │
 │                                                           │
 │  Special cases:                                           │
-│    - NULL key     → returns UINT32_MAX (error sentinel)   │
+│    - NULL key     → returns UINT64_MAX (error sentinel)   │
 │    - Empty string → valid hash (seed-dependent)           │
 └───────────────────────────────────────────────────────────┘
 ```
 
-### Two-Level Index Derivation
+### Dual-Seed Index Derivation
 
-A single hash is computed once and used at both levels:
+Two independent hashes are computed per key using separate seeds, one for each routing level. The seeds are generated at init from `clock_gettime(CLOCK_MONOTONIC)` nanosecond timestamps; the sub-bucket seed is XOR’d with the golden-ratio constant `0x9e3779b97f4a7c15` to guarantee distinctness even if both clock calls land on the same nanosecond.
 
 ```
   key = "sensor_42"
-  hash = MurmurHash3("sensor_42", seed)  →  e.g., 0xA3F1B2C4
+  bucket_hash     = MurmurHash3-64("sensor_42", g_bucket_hash_seed)     →  e.g., 0xA3F1B2C4D5E6F7A8
+  sub_bucket_hash = MurmurHash3-64("sensor_42", g_sub_bucket_hash_seed) →  e.g., 0x1234567890ABCDEF
 
-  Level 1:  bucket_idx  = 0xA3F1B2C4  %  16          =  4
-  Level 2:  sub_idx     = 0xA3F1B2C4  &  (8 - 1)     =  4   [0b...100]
-                                          └── bitmask: 0b111
+  Level 1:  bucket_idx  = 0xA3F1B2C4D5E6F7A8  %  16          =  8
+  Level 2:  sub_idx     = 0x1234567890ABCDEF  &  (8 - 1)     =  7   [0b...111]
+                                                 └── bitmask: 0b111
 ```
+
+This eliminates the earlier design’s correlation where a single hash was split across both levels, improving distribution under workloads with clustered keys.
 
 ---
 
@@ -452,25 +466,59 @@ The locking follows a strict **coarse-to-fine** ordering to prevent deadlocks:
            → Extremely short critical section (pointer swap only)
 ```
 
-### 7.2 Read vs Write Lock Usage
+### 7.2 Two-Phase Lock Protocol
+
+The sub-bucket rwlock and the node mutex are **never held simultaneously**. They operate in two sequential, non-overlapping phases:
 
 ```
-  GET operation:
-    sub_hash_bucket_lock → READ  lock   (multiple readers concurrently)
-    data_node.lock       → MUTEX lock   (serialized per-node read)
+  Phase 1 — List traversal (rwlock scope)
+  ────────────────────────────────────────────────────────────
+  acquire sub_hash_bucket_lock (READ or WRITE)
+      traverse linked list → locate node → capture pointer
+  release sub_hash_bucket_lock
+                             ↑
+                           released here — lock window is closed
 
-  SET/UPDATE operation:
-    sub_hash_bucket_lock → READ  lock   (for update of existing node)
-    data_node.lock       → MUTEX lock   (serialized per-node write)
-
-    sub_hash_bucket_lock → WRITE lock   (for inserting new node — modifies list)
-
-  DELETE operation:
-    sub_hash_bucket_lock → READ  lock   (soft-delete only modifies data_node)
-    data_node.lock       → MUTEX lock   (set is_deleted = true)
+  Phase 2 — Node access (node mutex scope)
+  ────────────────────────────────────────────────────────────
+  acquire data_node.lock (MUTEX)
+      check is_deleted  → if true: return NOT_FOUND
+      read / write data_node.data + data_node.data_size
+         (or set is_deleted = true for DELETE)
+  release data_node.lock
 ```
 
-> **Key insight:** Even SET (update) uses a READ lock on the sub-bucket because it doesn't modify the linked list structure — it only mutates the data_node's value via the node-level mutex. Only INSERT requires a WRITE lock because it changes the linked list head pointer.
+**Why release the rwlock before taking the node mutex?**
+Releasing the rwlock before acquiring the node mutex allows threads holding different nodes within the same sub-bucket to access their node values in parallel. If the rwlock were held across the node mutex, all node accesses within a sub-bucket would be serialized at the rwlock boundary — eliminating intra-bucket concurrency on the value path.
+
+**How is the use-after-free race closed?**
+There is a window between rwlock release and node mutex acquisition where a concurrent DELETE could unlink and free the node. The `is_deleted` flag closes this race:
+- DELETE: acquires node mutex → sets `is_deleted = true` → releases node mutex → unlinks from list (under write rwlock) → defers `free()`
+- Concurrent GET/UPDATE: acquires node mutex → checks `is_deleted` → if `true`, returns `ERR_DATA_NODE_NOT_FOUND` before touching `data` — no use-after-free
+
+```
+  Lock acquisition by operation:
+
+  GET:
+    Phase 1 → sub_hash_bucket_lock [READ]   (shared: concurrent GETs ok)
+    Phase 2 → data_node.lock [MUTEX]        (serialized per-node)
+
+  SET update (key exists):
+    Phase 1 → sub_hash_bucket_lock [READ]   (list structure unchanged)
+    Phase 2 → data_node.lock [MUTEX]        (exclusive value write)
+
+  SET insert (new key):
+    Phase 1 → sub_hash_bucket_lock [WRITE]  (modifies linked list head)
+    (no Phase 2 — new node not yet visible to other threads)
+
+  DELETE:
+    Phase 1 → sub_hash_bucket_lock [READ]   (soft-delete: no list change)
+    Phase 2 → data_node.lock [MUTEX]        (set is_deleted = true)
+```
+
+> **Key insight — READ lock for SET/UPDATE:** Even SET (update) uses a READ lock on the sub-bucket because it does not modify the linked list structure — it only mutates the node's value in Phase 2 via the node mutex. Only INSERT requires a WRITE lock because it changes the linked list head pointer.
+
+> **Key insight — READ lock for DELETE:** Soft-delete does not unlink the node from the list; it only sets `is_deleted = true` in Phase 2. Physical unlinking happens later during list cleanup (triggered at resize or chain-length threshold), at which point a WRITE lock is taken on the sub-bucket.
 
 ### 7.3 Concurrency Under Resize
 
@@ -642,25 +690,25 @@ Three separate buffers capture concurrent operations during an active resize:
   │                    resizing_buffer                          │
   │                                                             │
   │  ┌───────────────────────────────────────────────────┐      │
-  │  │  new_operation_buffer (doubly-linked list)         │     │
-  │  │  - All NEW writes arriving during resize           │     │
-  │  │  - Spinlock-protected (pthread_spinlock_t)         │     │
-  │  │  - Chase worker reads from tail → head             │     │
+  │  │  new_operation_buffer (doubly-linked list)        │      │
+  │  │  - All NEW writes arriving during resize          │      │
+  │  │  - Spinlock-protected (pthread_spinlock_t)        │      │
+  │  │  - Chase worker reads from tail → head            │      │
   │  └───────────────────────────────────────────────────┘      │
   │                                                             │
   │  ┌───────────────────────────────────────────────────┐      │
-  │  │  updated_operation_buffer (singly-linked list)     │     │
-  │  │  - Updates to nodes already IN the snapshot        │     │
-  │  │  - No spinlock (protected by resizing_lock)        │     │
-  │  │  - Applied during finalization                     │     │
+  │  │  updated_operation_buffer (singly-linked list)    │      │
+  │  │  - Updates to nodes already IN the snapshot       │      │
+  │  │  - No spinlock (protected by resizing_lock)       │      │
+  │  │  - Applied during finalization                    │      │
   │  └───────────────────────────────────────────────────┘      │
   │                                                             │
   │  ┌───────────────────────────────────────────────────┐      │
-  │  │  delete_operation_buffer (growable array)          │     │
-  │  │  - Deletes of nodes in the snapshot                │     │
-  │  │  - Stores key + hash pairs                         │     │
-  │  │  - Grows by 500 entries via realloc when full      │     │
-  │  │  - Applied during finalization                     │     │
+  │  │  delete_operation_buffer (growable array)         │      │
+  │  │  - Deletes of nodes in the snapshot               │      │
+  │  │  - Stores key + hash pairs                        │      │
+  │  │  - Grows by 500 entries via realloc when full     │      │
+  │  │  - Applied during finalization                    │      │
   │  └───────────────────────────────────────────────────┘      │
   └─────────────────────────────────────────────────────────────┘
 ```

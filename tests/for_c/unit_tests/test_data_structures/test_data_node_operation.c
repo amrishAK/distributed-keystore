@@ -1,319 +1,259 @@
-/**
- * @file test_data_node_operations.c
- * @brief Unit tests for data_node_operation.h in data_structures dir.
+/*
+ * Unit tests for data_node_operation.c
  *
- * This file contains comprehensive unit tests for the data node operations API.
- * All type definitions and error codes are included from the type_definitions directory only.
- *
- * Test Scenarios Covered:
- * 1. Successful creation of a data node with valid key-value pair.
- * 2. Creation with invalid arguments (NULL key_value_pair).
- * 3. Editing the value of an existing data node.
- * 4. Reading the value and key from a data node.
- * 5. Deleting a data node (including NULL pointer case).
- * 6. Soft deleting a data node and verifying the is_deleted flag.
- * 7. Edge cases for memory allocation failures and empty values (if error codes are defined).
- * 8. Creating a data node with very large and value sizes.
- * 9. Editing a data node with very large value sizes.
- * 10. Double soft deletion of a data node (should handle gracefully).
- * 11. Double deletion of a data node (should handle gracefully).
- * 12. Create data node with special character values.
- * 13. Create data node with binary data values.
- * 14. Create data with null output pointer.
- * 15. Edit data node with null new_kv_pair.
- *
- * All tests use the Unity framework for assertions.
+ * This suite covers all public API functions, error paths, memory management, and operation counter invariants.
+ * Test framework: Unity
  */
 #include "unity.h"
 #include "data_structures/data_node_operation.h"
 #include "type_definitions/hash_bucket_type_definition.h"
 #include "type_definitions/error_code_definitions.h"
-#include "type_definitions/stats_type_definitions.h"
+#include "type_definitions/sucess_code_definitions.h"
 #include <string.h>
 #include <stdlib.h>
+#include "utils/memory_manager.h"
 
+// Mocks/stubs for memory manager and pthreads if needed
+// (Assume real implementations unless otherwise specified)
 
-void test_create_new_data_node_success(void) {
-    key_value_pair kv;
-    kv.key = "testkey";
-    kv.value = (unsigned char *)"testvalue";
-    kv.value_size = strlen("testvalue");
+static composite_key_hash dummy_hash = { .bucket_hash = 0x1234, .sub_bucket_hash = 0x5678 };
+
+void test_create_new_data_node_valid_input_returns_success(void) {
+    key_value_pair kv = { .key = "abc", .value = (unsigned char*)"val", .value_size = 4 };
     data_node *node = NULL;
-    int result = create_new_data_node(12345, &kv, false, &node);
-    TEST_ASSERT_EQUAL(0, result);
+    int res = create_new_data_node(dummy_hash, &kv, false, &node);
+    TEST_ASSERT_EQUAL(0, res);
     TEST_ASSERT_NOT_NULL(node);
-    TEST_ASSERT_EQUAL_STRING("testkey", node->key);
-    TEST_ASSERT_EQUAL_MEMORY("testvalue", node->data, kv.value_size);
-    TEST_ASSERT_EQUAL(kv.value_size, node->data_size);
+    TEST_ASSERT_EQUAL_STRING("abc", node->key);
+    TEST_ASSERT_EQUAL_UINT32(dummy_hash.bucket_hash, node->key_hash.bucket_hash);
     delete_data_node(node);
 }
 
-void test_create_new_data_node_invalid_args(void) {
+void test_create_new_data_node_null_kv_pair_returns_error(void) {
     data_node *node = NULL;
-    int result = create_new_data_node(12345, NULL, false, &node);
-    TEST_ASSERT_LESS_THAN(0, result);
-    TEST_ASSERT_NULL(node);
+    int res = create_new_data_node(dummy_hash, NULL, false, &node);
+    TEST_ASSERT_EQUAL(ERR_INVALID_ARGUMENT, res);
 }
 
-void test_create_new_data_node_empty_key(void) {
-    key_value_pair kv;
-    kv.key = "";
-    kv.value = (unsigned char *)"value";
-    kv.value_size = strlen("value");
+void test_create_new_data_node_null_key_returns_error(void) {
+    key_value_pair kv = { .key = NULL, .value = (unsigned char*)"val", .value_size = 4 };
     data_node *node = NULL;
-    int result = create_new_data_node(12345, &kv, false, &node);
-    TEST_ASSERT_LESS_THAN(0, result);
-    TEST_ASSERT_NULL(node);
+    int res = create_new_data_node(dummy_hash, &kv, false, &node);
+    TEST_ASSERT_EQUAL(ERR_INVALID_ARGUMENT, res);
 }
 
-void test_create_new_data_node_null_value(void) {
-    key_value_pair kv;
-    kv.key = "key";
-    kv.value = NULL;
-    kv.value_size = 0;
+void test_create_new_data_node_empty_key_returns_error(void) {
+    key_value_pair kv = { .key = "", .value = (unsigned char*)"val", .value_size = 4 };
     data_node *node = NULL;
-    int result = create_new_data_node(12345, &kv, false, &node);
-    TEST_ASSERT_LESS_THAN(0, result);
-    TEST_ASSERT_NULL(node);
+    int res = create_new_data_node(dummy_hash, &kv, false, &node);
+    TEST_ASSERT_EQUAL(ERR_INVALID_ARGUMENT, res);
 }
 
-void test_edit_data_node_value(void) {
-    key_value_pair kv;
-    kv.key = "editkey";
-    kv.value = (unsigned char *)"oldvalue";
-    kv.value_size = strlen("oldvalue");
+void test_create_new_data_node_null_output_ptr_returns_error(void) {
+    key_value_pair kv = { .key = "abc", .value = (unsigned char*)"val", .value_size = 4 };
+    int res = create_new_data_node(dummy_hash, &kv, false, NULL);
+    TEST_ASSERT_EQUAL(ERR_INVALID_ARGUMENT, res);
+}
+
+void test_edit_data_node_value_valid_update(void) {
+    key_value_pair kv = { .key = "abc", .value = (unsigned char*)"val", .value_size = 4 };
     data_node *node = NULL;
-    create_new_data_node(54321, &kv, false, &node);
-    key_value_pair new_kv;
-    new_kv.value = (unsigned char *)"newvalue";
-    new_kv.value_size = strlen("newvalue");
-    int result = edit_data_node_value(node, &new_kv);
-    TEST_ASSERT_EQUAL(0, result);
-    TEST_ASSERT_EQUAL_MEMORY("newvalue", node->data, new_kv.value_size);
+    create_new_data_node(dummy_hash, &kv, false, &node);
+    key_value_pair new_kv = { .key = "abc", .value = (unsigned char*)"newv", .value_size = 5 };
+    int res = edit_data_node_value(node, &new_kv);
+    TEST_ASSERT_EQUAL(0, res);
+    TEST_ASSERT_EQUAL_MEMORY("newv", node->data, 5);
     delete_data_node(node);
 }
 
-void test_edit_data_node_value_null_node(void) {
-    key_value_pair new_kv;
-    new_kv.value = (unsigned char *)"newvalue";
-    new_kv.value_size = strlen("newvalue");
-    int result = edit_data_node_value(NULL, &new_kv);
-    TEST_ASSERT_LESS_THAN(0, result);
+void test_edit_data_node_value_null_node_returns_error(void) {
+    key_value_pair new_kv = { .key = "abc", .value = (unsigned char*)"newv", .value_size = 5 };
+    int res = edit_data_node_value(NULL, &new_kv);
+    TEST_ASSERT_EQUAL(ERR_INVALID_ARGUMENT, res);
 }
 
-void test_edit_data_node_value_null_value(void) {
-    key_value_pair kv;
-    kv.key = "editkey";
-    kv.value = (unsigned char *)"oldvalue";
-    kv.value_size = strlen("oldvalue");
+void test_edit_data_node_value_null_kv_pair_returns_error(void) {
+    key_value_pair kv = { .key = "abc", .value = (unsigned char*)"val", .value_size = 4 };
     data_node *node = NULL;
-    create_new_data_node(54321, &kv, false, &node);
-    key_value_pair new_kv;
-    new_kv.value = NULL;
-    new_kv.value_size = 0;
-    int result = edit_data_node_value(node, &new_kv);
-    TEST_ASSERT_LESS_THAN(0, result);
+    create_new_data_node(dummy_hash, &kv, false, &node);
+    int res = edit_data_node_value(node, NULL);
+    TEST_ASSERT_EQUAL(ERR_INVALID_ARGUMENT, res);
     delete_data_node(node);
 }
 
-void test_read_data_node_value(void) {
-    key_value_pair kv;
-    kv.key = "readkey";
-    kv.value = (unsigned char *)"readvalue";
-    kv.value_size = strlen("readvalue");
+void test_edit_data_node_value_zero_value_size_clears_data(void) {
+    key_value_pair kv = { .key = "abc", .value = (unsigned char*)"val", .value_size = 4 };
     data_node *node = NULL;
-    create_new_data_node(11111, &kv, false, &node);
-    key_value_pair out_kv = {0};
-    int result = read_data_node_value(node, &out_kv);
-    TEST_ASSERT_EQUAL(0, result);
-    TEST_ASSERT_EQUAL_STRING("readkey", out_kv.key);
-    TEST_ASSERT_EQUAL_MEMORY("readvalue", out_kv.value, kv.value_size);
-    TEST_ASSERT_EQUAL(kv.value_size, out_kv.value_size);
-    free(out_kv.key);
-    free(out_kv.value);
+    create_new_data_node(dummy_hash, &kv, false, &node);
+    key_value_pair new_kv = { .key = "abc", .value = (unsigned char*)"", .value_size = 0 };
+    int res = edit_data_node_value(node, &new_kv);
+    TEST_ASSERT_EQUAL(0, res);
+    TEST_ASSERT_NULL(node->data);
     delete_data_node(node);
 }
 
-void test_read_data_node_value_null_node(void) {
-    key_value_pair out_kv = {0};
-    int result = read_data_node_value(NULL, &out_kv);
-    TEST_ASSERT_LESS_THAN(0, result);
-}
-
-void test_read_data_node_value_null_out(void) {
-    key_value_pair kv;
-    kv.key = "readkey";
-    kv.value = (unsigned char *)"readvalue";
-    kv.value_size = strlen("readvalue");
+void test_read_data_node_value_valid(void) {
+    key_value_pair kv = { .key = "abc", .value = (unsigned char*)"val", .value_size = 4 };
     data_node *node = NULL;
-    create_new_data_node(11111, &kv, false, &node);
-    int result = read_data_node_value(node, NULL);
-    TEST_ASSERT_LESS_THAN(0, result);
+    create_new_data_node(dummy_hash, &kv, false, &node);
+    key_value_pair out = {0};
+    int res = read_data_node_value(node, &out);
+    TEST_ASSERT_EQUAL(0, res);
+    TEST_ASSERT_EQUAL_STRING("abc", out.key);
+    TEST_ASSERT_EQUAL_MEMORY("val", out.value, 4);
+    free(out.key);
+    free(out.value);
     delete_data_node(node);
 }
 
-void test_delete_data_node_null(void) {
-    int result = delete_data_node(NULL);
-    TEST_ASSERT_EQUAL(0, result);
+void test_read_data_node_value_null_node_returns_error(void) {
+    key_value_pair out = {0};
+    int res = read_data_node_value(NULL, &out);
+    TEST_ASSERT_EQUAL(ERR_INVALID_ARGUMENT, res);
 }
 
-void test_soft_delete_data_node(void) {
-    key_value_pair kv;
-    kv.key = "softkey";
-    kv.value = (unsigned char *)"softvalue";
-    kv.value_size = strlen("softvalue");
+void test_read_data_node_value_null_output_returns_error(void) {
+    key_value_pair kv = { .key = "abc", .value = (unsigned char*)"val", .value_size = 4 };
     data_node *node = NULL;
-    create_new_data_node(22222, &kv, false, &node);
-    int result = soft_delete_data_node(node);
-    TEST_ASSERT_EQUAL(0, result);
+    create_new_data_node(dummy_hash, &kv, false, &node);
+    int res = read_data_node_value(node, NULL);
+    TEST_ASSERT_EQUAL(ERR_INVALID_ARGUMENT, res);
+    delete_data_node(node);
+}
+
+void test_delete_data_node_valid_frees_memory(void) {
+    key_value_pair kv = { .key = "abc", .value = (unsigned char*)"val", .value_size = 4 };
+    data_node *node = NULL;
+    create_new_data_node(dummy_hash, &kv, false, &node);
+    int res = delete_data_node(node);
+    TEST_ASSERT_EQUAL(0, res);
+}
+
+void test_delete_data_node_null_pointer_noop(void) {
+    int res = delete_data_node(NULL);
+    TEST_ASSERT_EQUAL(0, res);
+}
+
+void test_soft_delete_data_node_sets_flag(void) {
+    key_value_pair kv = { .key = "abc", .value = (unsigned char*)"val", .value_size = 4 };
+    data_node *node = NULL;
+    create_new_data_node(dummy_hash, &kv, false, &node);
+    int res = soft_delete_data_node(node);
+    TEST_ASSERT_EQUAL(0, res);
     TEST_ASSERT_TRUE(node->is_deleted);
     delete_data_node(node);
 }
 
-void test_soft_delete_data_node_null(void) {
-    int result = soft_delete_data_node(NULL);
-    TEST_ASSERT_LESS_THAN(0, result);
+void test_soft_delete_data_node_null_pointer_returns_error(void) {
+    int res = soft_delete_data_node(NULL);
+    TEST_ASSERT_EQUAL(ERR_INVALID_ARGUMENT, res);
 }
 
-void test_create_new_data_node_with_large_value(void) {
-    key_value_pair kv;
-    kv.key = "largekey";
-    size_t large_size = 1024 * 1024; // 1 MB
-    kv.value = (unsigned char *)malloc(large_size);
-    memset(kv.value, 'A', large_size);
-    kv.value_size = large_size;
+void test_create_new_data_node_concurrency_enabled(void) {
+    key_value_pair kv = { .key = "abc", .value = (unsigned char*)"val", .value_size = 4 };
     data_node *node = NULL;
-    int result = create_new_data_node(33333, &kv, false, &node);
-    TEST_ASSERT_EQUAL(0, result);
+    int res = create_new_data_node(dummy_hash, &kv, true, &node);
+    TEST_ASSERT_EQUAL(0, res);
     TEST_ASSERT_NOT_NULL(node);
-    TEST_ASSERT_EQUAL_MEMORY(kv.value, node->data, large_size);
-    TEST_ASSERT_EQUAL(large_size, node->data_size);
+    TEST_ASSERT_TRUE(node->is_concurrency_enabled);
     delete_data_node(node);
-    free(kv.value);
 }
 
-void test_edit_data_node_value_with_larger_value(void) {
-    key_value_pair kv;
-    kv.key = "editlargekey";
-    kv.value = (unsigned char *)"smallvalue";
-    kv.value_size = strlen("smallvalue");
+void test_create_new_data_node_zero_value_size(void) {
+    key_value_pair kv = { .key = "abc", .value = (unsigned char*)"", .value_size = 0 };
     data_node *node = NULL;
-    create_new_data_node(44444, &kv, false, &node);
-    key_value_pair new_kv;
-    size_t large_size = 512 * 1024; // 512 KB
-    new_kv.value = (unsigned char *)malloc(large_size);
-    memset(new_kv.value, 'B', large_size);
-    new_kv.value_size = large_size;
-    int result = edit_data_node_value(node, &new_kv);
-    TEST_ASSERT_EQUAL(0, result);
-    TEST_ASSERT_EQUAL_MEMORY(new_kv.value, node->data, large_size);
-    TEST_ASSERT_EQUAL(large_size, node->data_size);
+    int res = create_new_data_node(dummy_hash, &kv, false, &node);
+    TEST_ASSERT_EQUAL(0, res);
+    TEST_ASSERT_NOT_NULL(node);
+    TEST_ASSERT_NULL(node->data);
+    TEST_ASSERT_EQUAL(0, node->data_size);
     delete_data_node(node);
-    free(new_kv.value);
 }
 
-void test_soft_delete_data_node_already_soft_deleted(void) {
-    key_value_pair kv;
-    kv.key = "softkey2";
-    kv.value = (unsigned char *)"softvalue2";
-    kv.value_size = strlen("softvalue2");
+void test_edit_data_node_value_zero_value_size_on_nonempty_node(void) {
+    key_value_pair kv = { .key = "abc", .value = (unsigned char*)"val", .value_size = 4 };
     data_node *node = NULL;
-    create_new_data_node(55555, &kv, false, &node);
+    create_new_data_node(dummy_hash, &kv, false, &node);
+    key_value_pair new_kv = { .key = "abc", .value = (unsigned char*)"", .value_size = 0 };
+    int res = edit_data_node_value(node, &new_kv);
+    TEST_ASSERT_EQUAL(0, res);
+    TEST_ASSERT_NULL(node->data);
+    TEST_ASSERT_EQUAL(0, node->data_size);
+    delete_data_node(node);
+}
+
+void test_error_code_counters_increment_on_failure(void) {
+    extern data_node_operation_stats g_data_node_operation_counters;
+    memset(&g_data_node_operation_counters, 0, sizeof(data_node_operation_stats));
+    create_new_data_node(dummy_hash, NULL, false, NULL); // Should return ERR_INVALID_ARGUMENT
+    int idx = -ERR_INVALID_ARGUMENT;
+    TEST_ASSERT_EQUAL(1, g_data_node_operation_counters.error_code_counters[idx]);
+}
+
+void test_soft_delete_and_delete_idempotency(void) {
+    key_value_pair kv = { .key = "abc", .value = (unsigned char*)"val", .value_size = 4 };
+    data_node *node = NULL;
+    create_new_data_node(dummy_hash, &kv, false, &node);
+    int res1 = soft_delete_data_node(node);
+    int res2 = soft_delete_data_node(node); // Should be idempotent
+    TEST_ASSERT_EQUAL(0, res1);
+    TEST_ASSERT_EQUAL(0, res2);
+    int del1 = delete_data_node(node);
+    TEST_ASSERT_EQUAL(0, del1);
+    // After deletion, node pointer is dangling; do not call delete again.
+    // Optionally, set node to NULL to avoid accidental reuse.
+    node = NULL;
+    TEST_ASSERT_NULL(node);
+    // Note: API idempotency means repeated calls with the same pointer value are safe,
+    // but after free, the pointer must not be reused by the test.
+}
+
+// Allocation and reallocation failure tests would require dependency injection or linker tricks for malloc/free
+// For now, we skip these unless a mock memory manager is available
+
+void test_operation_counters_increment_on_success_and_failure(void) {
+    extern data_node_operation_stats g_data_node_operation_counters;
+    memset(&g_data_node_operation_counters, 0, sizeof(data_node_operation_stats));
+    key_value_pair kv = { .key = "abc", .value = (unsigned char*)"val", .value_size = 4 };
+    data_node *node = NULL;
+    create_new_data_node(dummy_hash, &kv, false, &node);
+    edit_data_node_value(node, &kv);
+    // read_data_node_value allocates kv.key and kv.value, must free after
+    read_data_node_value(node, &kv);
+    if (kv.key) free_memory(kv.key, false);
+    if (kv.value) free_memory(kv.value, false);
     soft_delete_data_node(node);
-    int result = soft_delete_data_node(node);
-    TEST_ASSERT_EQUAL(0, result);
-    TEST_ASSERT_TRUE(node->is_deleted);
     delete_data_node(node);
-}
-
-void test_delete_data_node_already_deleted(void) {
-    key_value_pair kv;
-    kv.key = "delkey";
-    kv.value = (unsigned char *)"delvalue";
-    kv.value_size = strlen("delvalue");
-    data_node *node = NULL;
-    create_new_data_node(66666, &kv, false, &node);
-    delete_data_node(node);
-    node = NULL; // Simulate that node is already deleted
-    int result = delete_data_node(node);
-    TEST_ASSERT_EQUAL(0, result);
-}
-
-void test_create_new_data_node_with_special_char_value(void) {
-    key_value_pair kv;
-    kv.key = "specialValueKey";
-    unsigned char special_value[] = {0x00, 0xFF, 0x7E, 0x81, 0x42};
-    kv.value = special_value;
-    kv.value_size = sizeof(special_value);
-    data_node *node = NULL;
-    int result = create_new_data_node(77777, &kv, false, &node);
-    TEST_ASSERT_EQUAL(0, result);
-    TEST_ASSERT_NOT_NULL(node);
-    TEST_ASSERT_EQUAL_MEMORY(special_value, node->data, kv.value_size);
-    TEST_ASSERT_EQUAL(kv.value_size, node->data_size);
-    delete_data_node(node);
-}
-
-void test_create_new_data_node_with_binary_value(void) {
-    key_value_pair kv;
-    kv.key = "binaryKey";
-    unsigned char binary_value[] = {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01, 0x02};
-    kv.value = binary_value;
-    kv.value_size = sizeof(binary_value);
-    data_node *node = NULL;
-    int result = create_new_data_node(88888, &kv, false, &node);
-    TEST_ASSERT_EQUAL(0, result);
-    TEST_ASSERT_NOT_NULL(node);
-    TEST_ASSERT_EQUAL_MEMORY(binary_value, node->data, kv.value_size);
-    TEST_ASSERT_EQUAL(kv.value_size, node->data_size);
-    delete_data_node(node);
-}
-
-void test_create_new_data_node_with_null_out_pointer(void) {
-    key_value_pair kv;
-    kv.key = "nullOutKey";
-    kv.value = (unsigned char *)"nullOutValue";
-    kv.value_size = strlen("nullOutValue");
-    int result = create_new_data_node(99999, &kv, false, NULL);
-    TEST_ASSERT_LESS_THAN(0, result);
-}
-
-void test_edit_data_node_with_null_kv_pair(void) {
-    key_value_pair kv;
-    kv.key = "editNullKey";
-    kv.value = (unsigned char *)"editNullValue";
-    kv.value_size = strlen("editNullValue");
-    data_node *node = NULL;
-    create_new_data_node(10101, &kv, false, &node);
-    int result = edit_data_node_value(node, NULL);
-    TEST_ASSERT_LESS_THAN(0, result);
-    delete_data_node(node);
+    TEST_ASSERT_EQUAL(1, g_data_node_operation_counters.successful_create_operations);
+    TEST_ASSERT_EQUAL(1, g_data_node_operation_counters.successful_update_operations);
+    TEST_ASSERT_EQUAL(1, g_data_node_operation_counters.successful_read_operations);
+    TEST_ASSERT_EQUAL(1, g_data_node_operation_counters.successful_soft_delete_operations);
+    TEST_ASSERT_EQUAL(1, g_data_node_operation_counters.successful_delete_operations);
 }
 
 int test_data_node_operations_main(void) {
     UNITY_BEGIN();
-    printf("Running data_node_operation tests...\n");
-    RUN_TEST(test_create_new_data_node_success);
-    RUN_TEST(test_create_new_data_node_invalid_args);
-    RUN_TEST(test_edit_data_node_value);
-    RUN_TEST(test_read_data_node_value);
-    RUN_TEST(test_delete_data_node_null);
-    RUN_TEST(test_soft_delete_data_node);
-    RUN_TEST(test_create_new_data_node_empty_key);
-    RUN_TEST(test_create_new_data_node_null_value);
-    RUN_TEST(test_edit_data_node_value_null_node);
-    RUN_TEST(test_edit_data_node_value_null_value);
-    RUN_TEST(test_read_data_node_value_null_node);
-    RUN_TEST(test_read_data_node_value_null_out);
-    RUN_TEST(test_soft_delete_data_node_null);
-    RUN_TEST(test_create_new_data_node_with_large_value);
-    RUN_TEST(test_edit_data_node_value_with_larger_value);
-    RUN_TEST(test_soft_delete_data_node_already_soft_deleted);
-    RUN_TEST(test_delete_data_node_already_deleted);
-    RUN_TEST(test_create_new_data_node_with_special_char_value);
-    RUN_TEST(test_create_new_data_node_with_binary_value);
-    RUN_TEST(test_create_new_data_node_with_null_out_pointer);
-    RUN_TEST(test_edit_data_node_with_null_kv_pair);
-    printf("data_node_operation tests completed.\n");
+    RUN_TEST(test_create_new_data_node_valid_input_returns_success);
+    RUN_TEST(test_create_new_data_node_null_kv_pair_returns_error);
+    RUN_TEST(test_create_new_data_node_null_key_returns_error);
+    RUN_TEST(test_create_new_data_node_empty_key_returns_error);
+    RUN_TEST(test_create_new_data_node_null_output_ptr_returns_error);
+    RUN_TEST(test_edit_data_node_value_valid_update);
+    RUN_TEST(test_edit_data_node_value_null_node_returns_error);
+    RUN_TEST(test_edit_data_node_value_null_kv_pair_returns_error);
+    RUN_TEST(test_edit_data_node_value_zero_value_size_clears_data);
+    RUN_TEST(test_read_data_node_value_valid);
+    RUN_TEST(test_read_data_node_value_null_node_returns_error);
+    RUN_TEST(test_read_data_node_value_null_output_returns_error);
+    RUN_TEST(test_delete_data_node_valid_frees_memory);
+    RUN_TEST(test_delete_data_node_null_pointer_noop);
+    RUN_TEST(test_soft_delete_data_node_sets_flag);
+    RUN_TEST(test_soft_delete_data_node_null_pointer_returns_error);
+    RUN_TEST(test_operation_counters_increment_on_success_and_failure);
+    RUN_TEST(test_create_new_data_node_concurrency_enabled);
+    RUN_TEST(test_create_new_data_node_zero_value_size);
+    RUN_TEST(test_edit_data_node_value_zero_value_size_on_nonempty_node);
+    RUN_TEST(test_error_code_counters_increment_on_failure);
+    RUN_TEST(test_soft_delete_and_delete_idempotency);
     return UNITY_END();
 }

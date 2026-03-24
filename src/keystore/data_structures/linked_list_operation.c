@@ -7,19 +7,19 @@
 
 
 #pragma region Private Helper Functions
-static bool _list_node_hash_equals(linked_list_node *node_ptr, uint32_t key_hash, const char *key, bool include_soft_deleted);
+static bool _list_node_hash_equals(linked_list_node *node_ptr, composite_key_hash key_hash, const char *key, bool include_soft_deleted);
 #pragma endregion
 
 #pragma region Private Function Declarations
-static int _create_new_linked_list_node(uint32_t key_hash, data_node *data, linked_list_node **new_list_node_out);
+static int _create_new_linked_list_node(composite_key_hash key_hash, data_node *data, linked_list_node **new_list_node_out);
 static int _insert_linked_list_node(linked_list_node **node_header_ptr, linked_list_node* new_list_node);
-static int _get_data_node_from_linked_list(linked_list_node *node_header_ptr, const char *key, uint32_t key_hash, bool include_soft_deleted, data_node **data_node_out);
-static int _delete_all_linked_list_nodes(linked_list_node *node_header_ptr);
-static int _cleanup_deleted_linked_list_nodes(linked_list_node *node_header_ptr);
+static int _get_data_node_from_linked_list(linked_list_node *node_header_ptr, const char *key, composite_key_hash key_hash, bool include_soft_deleted, data_node **data_node_out);
+static int _delete_all_linked_list_nodes(linked_list_node **node_header_ptr);
+static int _cleanup_deleted_linked_list_nodes(linked_list_node **node_header_ptr);
 #pragma endregion
 
 #pragma region Public Function Definitions
-int create_new_linked_list_node(uint32_t key_hash, data_node *data, linked_list_node **new_list_node_out)
+int create_new_linked_list_node(composite_key_hash key_hash, data_node *data, linked_list_node **new_list_node_out)
 {
     int result = _create_new_linked_list_node(key_hash, data, new_list_node_out);
     return result;
@@ -31,19 +31,19 @@ int insert_linked_list_node(linked_list_node **node_header_ptr, linked_list_node
     return result;
 }
 
-int get_data_node_from_linked_list(linked_list_node *node_header_ptr, const char *key, uint32_t key_hash, bool include_soft_deleted, data_node **data_node_out)
+int get_data_node_from_linked_list(linked_list_node *node_header_ptr, const char *key, composite_key_hash key_hash, bool include_soft_deleted, data_node **data_node_out)
 {
     int result = _get_data_node_from_linked_list(node_header_ptr, key, key_hash, include_soft_deleted, data_node_out);
     return result;
 }
 
-int delete_all_linked_list_nodes(linked_list_node *node_header_ptr)
+int delete_all_linked_list_nodes(linked_list_node **node_header_ptr)
 {
     int result = _delete_all_linked_list_nodes(node_header_ptr);
     return result;
 }
 
-int cleanup_deleted_linked_list_nodes(linked_list_node *node_header_ptr)
+int cleanup_deleted_linked_list_nodes(linked_list_node **node_header_ptr)
 {
     int result = _cleanup_deleted_linked_list_nodes(node_header_ptr);
     return result;
@@ -53,7 +53,7 @@ int cleanup_deleted_linked_list_nodes(linked_list_node *node_header_ptr)
 
 #pragma region Private Function Definitions
 
-int _create_new_linked_list_node(uint32_t key_hash, data_node *data, linked_list_node **new_list_node_out)
+int _create_new_linked_list_node(composite_key_hash key_hash, data_node *data, linked_list_node **new_list_node_out)
 {
     if (data == NULL || new_list_node_out == NULL) {
         return ERR_INVALID_ARGUMENT; // Invalid data or output pointer
@@ -64,7 +64,7 @@ int _create_new_linked_list_node(uint32_t key_hash, data_node *data, linked_list
         return ERR_MEMORY_ALLOCATION_FAILED; // Memory allocation failure
     }
 
-    new_node->key_hash = key_hash;
+    new_node->key_hash = key_hash.sub_bucket_hash; // Store only sub bucket hash in the linked list node
     new_node->data_node_ptr = data;
     new_node->next_node_ptr = NULL;
 
@@ -88,7 +88,7 @@ int _insert_linked_list_node(linked_list_node **node_header_ptr, linked_list_nod
 }
 
 
-int _get_data_node_from_linked_list(linked_list_node *node_header_ptr, const char *key, uint32_t key_hash, bool include_soft_deleted, data_node **data_node_out)
+int _get_data_node_from_linked_list(linked_list_node *node_header_ptr, const char *key, composite_key_hash key_hash, bool include_soft_deleted, data_node **data_node_out)
 {
     if (key == NULL || data_node_out == NULL) return ERR_INVALID_ARGUMENT; // Invalid parameters
 
@@ -108,11 +108,11 @@ int _get_data_node_from_linked_list(linked_list_node *node_header_ptr, const cha
 }
 
 
-int _delete_all_linked_list_nodes(linked_list_node *node_header_ptr)
+int _delete_all_linked_list_nodes(linked_list_node **node_header_ptr)
 {
-    if(node_header_ptr == NULL) return SUCCESS; // Nothing to delete
+    if(node_header_ptr == NULL || *node_header_ptr == NULL) return SUCCESS; // Nothing to delete
 
-    linked_list_node *current_node_ptr = node_header_ptr;
+    linked_list_node *current_node_ptr = *node_header_ptr;
     linked_list_node *next_node_ptr = NULL;
 
     while (current_node_ptr != NULL)
@@ -123,38 +123,41 @@ int _delete_all_linked_list_nodes(linked_list_node *node_header_ptr)
         current_node_ptr = next_node_ptr;
     }
 
+    *node_header_ptr = NULL; // Set the head pointer to NULL after deletion
     return SUCCESS; // Success
 }
 
-int _cleanup_deleted_linked_list_nodes(linked_list_node *node_header_ptr)
+int _cleanup_deleted_linked_list_nodes(linked_list_node **node_header_ptr)
 {
-    if(node_header_ptr == NULL) return SUCCESS; // Nothing to clean up
+    // If the list is empty, set deleted count to 0 and return success
+    if (node_header_ptr == NULL || *node_header_ptr == NULL) return SUCCESS;
 
-    linked_list_node *current_node_ptr = node_header_ptr;
+    int deleted_count = 0;
+    int delete_result = 0;
+
+    linked_list_node *current_node_ptr = *node_header_ptr;
     linked_list_node *prev_node_ptr = NULL;
     linked_list_node *next_node_ptr = NULL;
-    int deleted_count = 0;
 
     while (current_node_ptr != NULL)
     {
         next_node_ptr = current_node_ptr->next_node_ptr;
 
-        if(current_node_ptr->data_node_ptr->is_deleted)
+        if (current_node_ptr->data_node_ptr->is_deleted)
         {
-            // Remove current node from the list
-            if(prev_node_ptr != NULL)
+            //Check if the node to be deleted is the head node
+            if (prev_node_ptr == NULL)
             {
-                prev_node_ptr->next_node_ptr = next_node_ptr;
+                *node_header_ptr = next_node_ptr; // Update head pointer if head node is deleted
             }
-
-            // If we're at the head, update the head pointer
-            if(current_node_ptr == node_header_ptr)
+            else
             {
-                node_header_ptr = next_node_ptr;
+                prev_node_ptr->next_node_ptr = next_node_ptr; // Bypass the deleted node
             }
 
             // Delete the data node and free the list node
-            delete_data_node(current_node_ptr->data_node_ptr);
+            delete_result = delete_data_node(current_node_ptr->data_node_ptr);
+            if(delete_result != SUCCESS) return delete_result; // Return if data node deletion fails
             free_memory(current_node_ptr, true);
             deleted_count++;
         }
@@ -162,11 +165,14 @@ int _cleanup_deleted_linked_list_nodes(linked_list_node *node_header_ptr)
         {
             prev_node_ptr = current_node_ptr;
         }
-
+        
         current_node_ptr = next_node_ptr;
     }
+    
+    // Return the count of deleted nodes 
+    //(non-negative value indicates success, and also provides the count of deleted nodes)
 
-    return deleted_count; // Return count of deleted nodes
+    return deleted_count;     
 }
 
 #pragma endregion
@@ -183,17 +189,17 @@ int _cleanup_deleted_linked_list_nodes(linked_list_node *node_header_ptr)
  * and if so, compares the actual keys for equality.
  *
  * @param node Pointer to the linked list node to compare.
- * @param key_hash The hash value of the key to compare against.
+ * @param key_hash Composite hash value of the key to compare, The composite key contains both bucket hash and sub bucket hash of the key.
  * @param key The key string to compare against.
  * @return bool Returns true if both the key hash and key match; otherwise, false.
  * @note If the data node is marked as deleted, the function returns false.
  */
-bool _list_node_hash_equals(linked_list_node *node_ptr, uint32_t key_hash, const char *key, bool include_soft_deleted)
+bool _list_node_hash_equals(linked_list_node *node_ptr, composite_key_hash key_hash, const char *key, bool include_soft_deleted)
 {
     bool result = false;
 
     if(node_ptr->data_node_ptr->is_deleted && !include_soft_deleted) return false;
-    if(node_ptr->key_hash == key_hash)
+    if(node_ptr->key_hash == key_hash.sub_bucket_hash)
     {
         result = (strcmp(node_ptr->data_node_ptr->key, key) == 0);
     }

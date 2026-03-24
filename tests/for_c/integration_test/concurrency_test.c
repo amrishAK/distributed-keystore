@@ -12,8 +12,8 @@
 #include "type_definitions/sucess_code_definitions.h"
 #include "utils/memory_manager.h"
 
-#define NUM_THREADS 120
-#define NUM_KEYS_PER_THREAD 150
+#define NUM_THREADS 2000
+#define NUM_KEYS_PER_THREAD 2000
 #define MAX_OPS (NUM_THREADS * NUM_KEYS_PER_THREAD)
 
 static uint64_t set_latencies_ns[MAX_OPS];
@@ -119,7 +119,7 @@ int main() {
         .bucket_size = 1024,
         .is_concurrency_enabled = true,
         .sub_hash_table_bucket_size = 1024, // or another reasonable default
-        .max_linked_list_chain_length = 20  // or another reasonable default
+        .max_linked_list_chain_length = 15  // or another reasonable default
     };
     if(initialise_key_store(config, 1.0) != 0) {
         printf("Failed to initialize key store with concurrency enabled.\n");
@@ -154,8 +154,10 @@ int main() {
 
     printf("Test scenario: Bucket-level concurrency with %d threads each setting/getting %d unique keys.\n", NUM_THREADS, NUM_KEYS_PER_THREAD);
     printf("==== Concurrency Test Report ====\n");
+    printf("Initialization: bucket_size=%d, sub_bucket_size=%d, max_chain_length=%d, concurrency_enabled=%s\n", config.bucket_size, config.sub_hash_table_bucket_size, config.max_linked_list_chain_length, config.is_concurrency_enabled ? "true" : "false");
     printf("Total threads: %d\n", NUM_THREADS);
     printf("Number of keys per thread: %d\n", NUM_KEYS_PER_THREAD);
+    printf("Set operations: %d, Get operations: %d\n", set_count, get_count);
     printf("Total ops: %d\n", set_count + get_count);
     printf("Total time: %.3fs\n", total_sec);
     printf("Throughput: %.2f ops/sec\n", throughput);

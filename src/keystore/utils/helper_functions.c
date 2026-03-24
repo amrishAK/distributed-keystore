@@ -1,5 +1,9 @@
+
 #include "helper_functions.h"
 #include "type_definitions/error_code_definitions.h"
+#ifndef _WIN32
+#include <unistd.h>  // usleep for POSIX
+#endif
 
 
 #pragma region Public Function Definitions
@@ -13,7 +17,6 @@ void portable_sleep_ms(unsigned long ms) {
 #ifdef _WIN32
     Sleep(ms);
 #else  // Linux/POSIX
-    #include <unistd.h>  // usleep here
     usleep(ms * 1000UL);
 #endif
 }

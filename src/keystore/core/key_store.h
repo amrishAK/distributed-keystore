@@ -36,13 +36,12 @@ int cleanup_key_store(void);
  * This function adds a new key-value pair to the key store or updates the value
  * if the key already exists. The value is provided as a key_store_value structure.
  *
- * @param key The key to set or update (null-terminated string).
- * @param value Pointer to a key_store_value structure containing the data and its size.
+ * @param key_value_pair Pointer to a key_value_pair structure containing the key and its associated value.
  * @return 0 on success, or a negative error code on failure.
  * 
- * @note The caller is responsible for managing the memory of the data pointer in value.
+ * @note The caller is responsible for managing the memory of the key_value_pair pointer.
  */
-int set_key(key_value_pair* value);
+int set_key(key_value_pair* key_value_pair);
 
 /**
  * @fn get_key
@@ -52,11 +51,11 @@ int set_key(key_value_pair* value);
  * If the key is found, the value is copied into the provided output structure.
  *
  * @param key The key to look up (null-terminated string).
- * @param value_out Pointer to a key_store_value structure to receive the value. It is set to NULL if the key is not found. 
+ * @param kv_pair_out Pointer to a key_value_pair structure to receive the key-value pair. It is set to NULL if the key is not found. 
  * @return 0 on success, or a negative error code if the key is not found or an error occurs.
- * @note The caller is responsible for managing the memory of the data pointer in value_out.
+ * @note The caller is responsible for managing the memory of the key_value_pair pointer.
  */
-int get_key(const char *key, key_value_pair* value_out);
+int get_key(const char *key, key_value_pair* kv_pair_out);
 
 /**
  * @fn delete_key

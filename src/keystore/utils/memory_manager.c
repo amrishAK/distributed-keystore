@@ -21,7 +21,8 @@ static int _cleanup_memory_pool(memory_pool *pool);
 #pragma region Public Function Definitions
 int initialize_memory_manager(const memory_manager_config config)
 {
-    if(config.bucket_size == 0 || config.pre_allocation_factor <= 0 || config.pre_allocation_factor > 1) return ERR_INVALID_CONFIG; // Invalid configuration parameters error
+    if(g_list_pool.is_initialized) return SUCCESS; // Already initialized — idempotent re-entry
+    if(config.bucket_size == 0 || config.pre_allocation_factor <= 0 || config.pre_allocation_factor > 1) return ERR_INVALID_CONFIG; // Invalid configuration parameters error   
 
     g_config = config;
     int pool_creation_result = 0;
@@ -258,33 +259,35 @@ bool _is_pointer_from_pool (memory_pool *pool, void *ptr) {
  */
 int _cleanup_memory_pool(memory_pool *pool)
 {
-    if(pool == NULL) return ERR_INVALID_ARGUMENT; // Invalid parameter
+    if(pool == NULL) return ERR_INVALID_ARGUMENT;
 
-    if(!pool->is_initialized) return SUCCESS; // Nothing to clean up
-
-    if(pool->pool_start_ptr != NULL)
-    {
+    // Free only what was directly allocated.
+    // pool_start_ptr holds the original malloc address; next_block_ptr advances
+    // during allocation and must NOT be freed directly.
+    if(pool->pool_start_ptr) {
         free(pool->pool_start_ptr);
         pool->pool_start_ptr = NULL;
+        pool->pool_end_ptr = NULL;
+        pool->next_block_ptr = NULL;
     }
-
-    if(pool->free_block_list != NULL)
-    {
+    if(pool->free_block_list) {
         free(pool->free_block_list);
         pool->free_block_list = NULL;
     }
 
+    // Destroy mutex if needed
+    if(pool->is_initialized && g_config.is_concurrency_enabled) {
+        pthread_mutex_destroy(&pool->pool_lock);
+    }
+
+    // Reset all fields
     pool->block_size = 0;
     pool->total_blocks = 0;
     pool->reusable_blocks = 0;
-    pool->is_initialized = false;
     pool->available_blocks = 0;
-    pool->next_block_ptr = NULL;
-    pool->pool_end_ptr = NULL;
+    pool->is_initialized = false;
 
-    if(g_config.is_concurrency_enabled) pthread_mutex_destroy(&pool->pool_lock);
-
-    return SUCCESS; // Success
+    return SUCCESS;
 }
 
 #pragma endregion

@@ -12,7 +12,7 @@
  * @param new_node_out Output pointer to the newly created node.
  * @return Status code.
  */
-int create_new_double_linked_list_node(uint32_t key_hash, data_node* data_node_ptr, double_linked_list_node** new_node_out);
+int create_new_double_linked_list_node(composite_key_hash key_hash, data_node* data_node_ptr, double_linked_list_node** new_node_out);
 
 /**
  * @brief Inserts a node at the head of the double linked list.
@@ -31,7 +31,7 @@ int insert_double_linked_list_node(double_linked_list_node** head_ptr, double_li
  * @param data_node_out Output pointer to the found data node.
  * @return Status code.
  */
-int find_data_node_in_double_linked_list(double_linked_list_node* head_ptr, const char* key, uint32_t key_hash, bool include_deleted, data_node** data_node_out);
+int find_data_node_in_double_linked_list(double_linked_list_node* head_ptr, const char* key, composite_key_hash key_hash, bool include_deleted, data_node** data_node_out);
 
 /**
  * @brief Deletes the entire double linked list.

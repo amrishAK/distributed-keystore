@@ -49,6 +49,16 @@ Soft-deletes a key-value pair from the keystore. The entry is marked as deleted 
 ---
 
 
+## Hashing
+
+The keystore uses **MurmurHash3 (64-bit)** with two independent per-instance seeds. Each key produces a `composite_key_hash` containing:
+- `bucket_hash` — routes to the top-level hash bucket
+- `sub_bucket_hash` — routes within the sub-hash table
+
+The hash function returns `UINT64_MAX` on NULL input (error sentinel).
+
+---
+
 ## Data Structures
 
 ### key_value_pair
@@ -150,4 +160,4 @@ int main() {
 - `src/keystore/core/key_store.h` for full API declarations
 - `examples/main.c` for usage examples
 - [ERROR_CODES.md](./ERROR_CODES.md) for all error codes
-- [README.md](./README.md) for architecture and concurrency model details
+- [README.md](./README.md) for architecture, hashing, and concurrency model details

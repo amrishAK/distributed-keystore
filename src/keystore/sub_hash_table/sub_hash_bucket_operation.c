@@ -42,10 +42,10 @@ int cleanup_sub_hash_bucket(sub_hash_bucket* sub_hash_bucket_ptr)
     sub_hash_bucket_operation_args args = {
         .sub_hash_bucket_ptr = sub_hash_bucket_ptr,
         .key = NULL,
-        .key_hash = 0
+        .key_hash = {0}
     };
 
-    result = (sub_hash_bucket_ptr->is_concurrency_enabled) ? _lock_wrapper_for_linked_list_node_operation(DELETE_ALL_LL_NODES, args, NULL, NULL) : delete_all_linked_list_nodes(sub_hash_bucket_ptr->linked_list_head);
+    result = (sub_hash_bucket_ptr->is_concurrency_enabled) ? _lock_wrapper_for_linked_list_node_operation(DELETE_ALL_LL_NODES, args, NULL, NULL) : delete_all_linked_list_nodes(&sub_hash_bucket_ptr->linked_list_head);
 
     if(sub_hash_bucket_ptr->is_concurrency_enabled) {
         result = pthread_rwlock_destroy(&sub_hash_bucket_ptr->sub_hash_bucket_lock);
@@ -101,7 +101,10 @@ int add_node_to_sub_hash_bucket(sub_hash_bucket_operation_args args, key_value_p
     args.sub_hash_bucket_ptr->active_node_count++;
     args.sub_hash_bucket_ptr->total_node_count++;
 
-    return _check_for_resize_condition(args.sub_hash_bucket_ptr);
+    result =  _check_for_resize_condition(args.sub_hash_bucket_ptr);
+
+    // Return specific code if new node added successfully, otherwise return error code
+    return result == SUCCESS ? SUCESS_ADDED_NEW_NODE : result; 
 }
 
 int get_key_store_value_from_sub_hash_bucket(sub_hash_bucket_operation_args args, key_value_pair* value_out)
@@ -189,10 +192,10 @@ int _lock_wrapper_for_linked_list_node_operation(linked_list_node_operation_t op
             result = get_data_node_from_linked_list(args.sub_hash_bucket_ptr->linked_list_head, args.key, args.key_hash, false, data_node_out);
             break;
         case DELETE_ALL_LL_NODES:
-            result = delete_all_linked_list_nodes(args.sub_hash_bucket_ptr->linked_list_head);
+            result = delete_all_linked_list_nodes(&args.sub_hash_bucket_ptr->linked_list_head);
             break;
         case CLEANUP_DELETED_LL_NODES:
-            result = cleanup_deleted_linked_list_nodes(args.sub_hash_bucket_ptr->linked_list_head);
+            result = cleanup_deleted_linked_list_nodes(&args.sub_hash_bucket_ptr->linked_list_head);
             break;
         default:
             result = ERR_UNSUPPORTED_HASH_BUCKET_OP; // Error handling: unsupported operation type
@@ -249,7 +252,8 @@ int _check_for_resize_condition(sub_hash_bucket* sub_hash_bucket_ptr)
     }
 
     // There are soft deleted nodes that can be reclaimed
-    int cleanup_result = (sub_hash_bucket_ptr->is_concurrency_enabled) ? _lock_wrapper_for_linked_list_node_operation(CLEANUP_DELETED_LL_NODES, (sub_hash_bucket_operation_args){.sub_hash_bucket_ptr = sub_hash_bucket_ptr, .key = NULL, .key_hash = 0}, NULL, NULL) : cleanup_deleted_linked_list_nodes(sub_hash_bucket_ptr->linked_list_head);
+    sub_hash_bucket_operation_args args = (sub_hash_bucket_operation_args){.sub_hash_bucket_ptr = sub_hash_bucket_ptr, .key = NULL, .key_hash = {0}};
+    int cleanup_result = (sub_hash_bucket_ptr->is_concurrency_enabled) ? _lock_wrapper_for_linked_list_node_operation(CLEANUP_DELETED_LL_NODES, args, NULL, NULL) : cleanup_deleted_linked_list_nodes(&sub_hash_bucket_ptr->linked_list_head);
 
     if(cleanup_result < 0) {
         return cleanup_result; // Error handling: failed to cleanup deleted linked list nodes
@@ -259,10 +263,10 @@ int _check_for_resize_condition(sub_hash_bucket* sub_hash_bucket_ptr)
 
     // After cleanup, check if we still need to resize
     if(sub_hash_bucket_ptr->total_node_count >= sub_hash_bucket_ptr->max_linked_list_chain_length) {
-        return 20; // Indicate that resizing is needed
+        return SUCESS_ADDED_NEW_NODE_RESZING_TRIGGERED; // Indicate that resizing is needed
     }
 
-    return 0; // No resize needed
+    return SUCCESS; // No resize needed
 }
 
 #pragma endregion

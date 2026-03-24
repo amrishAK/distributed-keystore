@@ -7,27 +7,26 @@
 #include "utils/helper_functions.h"
 #include "hash_table/hash_table_operation.h"
 
-#ifdef _WIN32
 #include <time.h>
-#else
-#include <time.h>
-#endif
 
 
 #pragma region Private Global Variables
-static uint32_t g_hash_seed = 0;
+static uint64_t g_bucket_hash_seed = 0; // Global seed for bucket hash function, initialized during key store initialization
+static uint64_t g_sub_bucket_hash_seed = 0; // Global seed for sub-bucket hash function, initialized during key store initialization
 hash_table_memory_pool* g_hash_table_pool = NULL;
 #pragma endregion
 
 
 #pragma region Private Function Declarations
-static uint32_t _generate_hash_seed(void);
-static int _get_key_hash(const char *key, uint32_t *key_hash_out);
+static uint64_t _generate_hash_seed(void);
+static int _get_key_hash(const char *key, composite_key_hash *key_hash_out);
 #pragma endregion
 
 #pragma region Public Function Definitions
 int initialise_key_store(hash_table_configuration config, double pre_memory_allocation_factor) 
 { 
+    if (g_hash_table_pool != NULL) return SUCCESS; // Already initialized — idempotent re-entry
+
     if(pre_memory_allocation_factor < 0.0 || pre_memory_allocation_factor > 1.0) return ERR_INVALID_ARGUMENT; // Error handling: invalid pre-allocation factor
 
     if (config.bucket_size == 0 || config.sub_hash_table_bucket_size == 0  || config.max_linked_list_chain_length == 0)  return ERR_INVALID_CONFIG; // Error handling: invalid configuration
@@ -47,7 +46,11 @@ int initialise_key_store(hash_table_configuration config, double pre_memory_allo
         return memory_manager_init_result; // Error handling: failed to initialize memory manager
     }
 
-    g_hash_seed = _generate_hash_seed();
+    // Generate random seeds for hash functions to ensure different hash distributions across runs.
+    // XOR the sub-bucket seed with a golden-ratio constant to guarantee the two seeds are always
+    // distinct, even when both calls resolve to the same nanosecond timestamp.
+    g_bucket_hash_seed     = _generate_hash_seed();
+    g_sub_bucket_hash_seed = _generate_hash_seed() ^ 0x9e3779b97f4a7c15ULL;
 
     int hash_buckets_init_result = create_new_hash_table(config, &g_hash_table_pool);
     if( hash_buckets_init_result != 0) {
@@ -61,9 +64,18 @@ int initialise_key_store(hash_table_configuration config, double pre_memory_allo
 
 int cleanup_key_store(void) 
 {
+    // Cleanup hash table and free associated memory
     cleanup_hash_table(g_hash_table_pool);
+    free_memory(g_hash_table_pool, false);
+    g_hash_table_pool = NULL;
+
+    // Cleanup memory manager
     cleanup_memory_manager();
-    g_hash_seed = 0;
+
+    // Reset global hash seeds
+    g_bucket_hash_seed = 0;
+    g_sub_bucket_hash_seed = 0;
+
     return SUCCESS; // Success
 }
 
@@ -72,7 +84,7 @@ int set_key(key_value_pair* value)
 {
     if (value == NULL || value->value == NULL || value->value_size == 0 || value->key == NULL || value->key[0] == '\0') return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
-    uint32_t key_hash;
+    composite_key_hash key_hash;
 
     int get_key_hash_result = _get_key_hash(value->key, &key_hash);
     if (get_key_hash_result != 0) return get_key_hash_result; // Error handling: failed to get hash and index
@@ -85,7 +97,7 @@ int get_key(const char *key, key_value_pair *value_out)
 {
     if (key == NULL || key[0] == '\0' || value_out == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
-    uint32_t key_hash;
+    composite_key_hash key_hash;
     int get_hash_result = _get_key_hash(key, &key_hash);
     if (get_hash_result != 0) return get_hash_result; // Error handling: failed to get hash and index
 
@@ -97,7 +109,7 @@ int delete_key(const char *key)
 {
     if (key == NULL || key[0] == '\0') return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
-    uint32_t key_hash;
+    composite_key_hash key_hash;
     int get_hash_result = _get_key_hash(key, &key_hash);
     if (get_hash_result != 0) return get_hash_result; // Error handling: failed to get hash and index
 
@@ -110,42 +122,44 @@ int delete_key(const char *key)
 
 /**
  * @fn _generate_hash_seed
- * @brief Generates a random seed for the hash function.
+ * @brief Generates a seed for the hash function using a monotonic nanosecond timestamp.
  *
- * This function generates a random seed based on the current time.
- * The seed is used to initialize the hash function to ensure different
- * hash distributions across different runs of the program.
+ * Uses CLOCK_MONOTONIC to obtain sub-microsecond resolution, avoiding the 1-second
+ * granularity of time()/`_time64()` which causes consecutive calls to return the same
+ * value and therefore produce identical bucket and sub-bucket seeds.
  *
- * @return A 32-bit unsigned integer representing the generated hash seed.
+ * @return A 64-bit unsigned integer seed derived from the current monotonic time.
  */
-uint32_t _generate_hash_seed(void) 
+uint64_t _generate_hash_seed(void)
 {
-    // Simple seed generation using current time
-    #ifdef _WIN32
-    return (uint32_t)_time64(NULL);
-    #else
-    return (uint32_t)time(NULL);
-    #endif
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
 }
 
 
 /**
  * @fn _get_key_hash
- * @brief Generates a random seed for the hash function.
+ * @brief Generates a composite hash for the given key.
  *
- * This function generates a random seed based on the current time.
- * The seed is used to initialize the hash function to ensure different
- * hash distributions across different runs of the program.
+ * This function generates a composite hash based on the key, using separate seeds
+ * for the bucket and sub-bucket hashes. The composite hash is used to efficiently
+ * locate the key within the hash table.
  *
- * @return A 32-bit unsigned integer representing the generated hash seed.
+ * @param key The key for which to generate the hash.
+ * @param key_hash_out Pointer to a composite_key_hash structure to receive the generated hash.
+ * @return 0 on success, or a negative error code on failure.
  */
-int _get_key_hash(const char *key, uint32_t *key_hash_out) 
+int _get_key_hash(const char *key, composite_key_hash *key_hash_out) 
 {
     if ( key_hash_out == NULL) return ERR_INVALID_ARGUMENT; // Handle error: invalid output pointers
 
-    uint32_t key_hash = hash_function_murmur_32(key, g_hash_seed);
+    composite_key_hash key_hash = {0};
+    key_hash.bucket_hash = hash_function_murmur_64(key, g_bucket_hash_seed);
+    key_hash.sub_bucket_hash = hash_function_murmur_64(key, g_sub_bucket_hash_seed);
 
-    if(key_hash == UINT32_MAX) return ERR_HASH_COMPUTE_FAILED; // Handle error: hash function failed
+
+    if( key_hash.bucket_hash == UINT64_MAX || key_hash.sub_bucket_hash == UINT64_MAX) return ERR_HASH_COMPUTE_FAILED; // Handle error: hash function failed
     
     *key_hash_out = key_hash;
     return SUCCESS; // Success

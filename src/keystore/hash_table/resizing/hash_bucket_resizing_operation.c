@@ -13,9 +13,9 @@
 
 
 #pragma region Private Function Definitions
-int _find_node_in_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr, const char* key, uint32_t key_hash, key_value_pair* key_value_pair_out);
-int _delete_node_while_resizing(hash_bucket* hash_bucket_ptr, const char *key, uint32_t key_hash);
-int _update_node_while_resizing(hash_bucket* hash_bucket_ptr, uint32_t key_hash, key_value_pair* kv_pair);
+int _find_node_in_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr, const char* key, composite_key_hash key_hash, key_value_pair* key_value_pair_out);
+int _delete_node_while_resizing(hash_bucket* hash_bucket_ptr, const char *key, composite_key_hash key_hash);
+int _update_node_while_resizing(hash_bucket* hash_bucket_ptr, composite_key_hash key_hash, key_value_pair* kv_pair);
 #pragma endregion
 
 
@@ -34,7 +34,7 @@ int initialize_hash_bucket_resizing(hash_bucket* hash_bucket_ptr)
     return result;
 }
 
-int upsert_node_to_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr, uint32_t key_hash, key_value_pair* kv_pair) {
+int upsert_node_to_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr, composite_key_hash key_hash, key_value_pair* kv_pair) {
     if (hash_bucket_ptr == NULL || kv_pair == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
     
@@ -47,7 +47,7 @@ int upsert_node_to_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr, uin
     return _update_node_while_resizing(hash_bucket_ptr, key_hash, kv_pair);
 }
 
-int get_key_value_from_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr, const char *key, uint32_t key_hash, key_value_pair* kv_pair_out) {
+int get_key_value_from_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr, const char *key, composite_key_hash key_hash, key_value_pair* kv_pair_out) {
     if (hash_bucket_ptr == NULL || kv_pair_out == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
     //If the resizing finished while waiting for the lock, proceed with normal upsert
@@ -62,7 +62,7 @@ int get_key_value_from_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr,
     return _find_node_in_hash_bucket_during_resizing(hash_bucket_ptr, key, key_hash, kv_pair_out);
 }
 
-int delete_key_from_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr, const char *key, uint32_t key_hash) {
+int delete_key_from_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr, const char *key, composite_key_hash key_hash) {
     if (hash_bucket_ptr == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
     //If the resizing finished while waiting for the lock, proceed with normal upsert
@@ -89,7 +89,7 @@ int check_resize_status(hash_bucket* hash_bucket_ptr) {
 
 #pragma region Private Function Definitions
 
-int _find_node_in_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr, const char* key, uint32_t key_hash, key_value_pair* key_value_pair_out)
+int _find_node_in_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr, const char* key, composite_key_hash key_hash, key_value_pair* key_value_pair_out)
 {
     if (hash_bucket_ptr == NULL || key_value_pair_out == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
 
@@ -116,7 +116,7 @@ int _find_node_in_hash_bucket_during_resizing(hash_bucket* hash_bucket_ptr, cons
 }
 
 
-int _delete_node_while_resizing(hash_bucket* hash_bucket_ptr, const char *key, uint32_t key_hash)
+int _delete_node_while_resizing(hash_bucket* hash_bucket_ptr, const char *key, composite_key_hash key_hash)
 {
     int result = 0;
     
@@ -128,7 +128,7 @@ int _delete_node_while_resizing(hash_bucket* hash_bucket_ptr, const char *key, u
     }
     else if(result == ERR_DATA_NODE_NOT_FOUND) {
         // Node not found, add to current operation list in buffer
-        unsigned char* dummy_value = "dummy_value"; // Use the key as the dummy key for deletion
+        unsigned char* dummy_value = (unsigned char*)"dummy_value"; // Use the key as the dummy key for deletion
         key_value_pair dummy_kv_pair = { .key = (char*)key, .value = dummy_value, .value_size = strlen((char*)dummy_value) };
         result = insert_node_to_new_operation_buffer(hash_bucket_ptr, key_hash, &dummy_kv_pair, true);
     }
@@ -136,7 +136,7 @@ int _delete_node_while_resizing(hash_bucket* hash_bucket_ptr, const char *key, u
     return result;
 }
 
-int _update_node_while_resizing(hash_bucket* hash_bucket_ptr, uint32_t key_hash, key_value_pair* kv_pair)
+int _update_node_while_resizing(hash_bucket* hash_bucket_ptr, composite_key_hash key_hash, key_value_pair* kv_pair)
 {
     int result = 0;
     

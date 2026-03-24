@@ -17,13 +17,12 @@ static int _init_new_operation_buffer(new_operation_buffer** buffer_out);
 static int _init_delete_operation_buffer(delete_operation_buffer** buffer_out, bool is_reallocating);
 static int _free_delete_operation_buffer(delete_operation_buffer* buffer_ptr);
 static int _free_new_operation_buffer(new_operation_buffer* buffer_ptr);
-static int _find_node_in_delete_operation_buffer(delete_operation_buffer* delete_operation_buffer_ptr, uint32_t key_hash, const char* key);
+static int _find_node_in_delete_operation_buffer(delete_operation_buffer* delete_operation_buffer_ptr, composite_key_hash key_hash, const char* key);
 static int _commit_data_node_operation(data_node* data_node_ptr, sub_hash_table_memory_pool* target_sub_hash_table_ptr);
 static int _process_new_operation_buffer(new_operation_buffer* new_operation_buffer_ptr, sub_hash_table_memory_pool* target_sub_hash_table_ptr, bool is_target_snapshot);
 static int _process_updated_operation_buffer(linked_list_node* updated_operation_buffer_head, sub_hash_table_memory_pool* target_sub_hash_table_ptr);
 static int _process_deleted_operation_buffer(delete_operation_buffer* delete_operation_buffer_ptr, sub_hash_table_memory_pool* target_sub_hash_table_ptr);
 #pragma endregion
-
 
 #pragma region Public Function Definitions
 
@@ -139,9 +138,9 @@ int initialize_resizing_buffer(hash_bucket* hash_bucket_ptr)
 }
 
 
-int insert_node_to_new_operation_buffer(hash_bucket* hash_bucket_ptr, uint32_t key_hash, key_value_pair* kv_pair, bool is_delete_operation)
+int insert_node_to_new_operation_buffer(hash_bucket* hash_bucket_ptr, composite_key_hash key_hash, key_value_pair* kv_pair, bool is_delete_operation)
 {
-    if (hash_bucket_ptr == NULL || kv_pair == NULL || key_hash == 0) return ERR_INVALID_ARGUMENT;
+    if (hash_bucket_ptr == NULL || kv_pair == NULL) return ERR_INVALID_ARGUMENT;
 
     int result = 0;
     data_node* new_data_node = NULL;
@@ -175,7 +174,7 @@ int delete_resizing_buffer(resizing_buffer* resizing_buffer_ptr)
     int temp_result = SUCCESS;
 
     // Delete updated operation buffer
-    temp_result = delete_all_linked_list_nodes(resizing_buffer_ptr->updated_operation_buffer_head);
+    temp_result = delete_all_linked_list_nodes(&resizing_buffer_ptr->updated_operation_buffer_head);
     if(temp_result != SUCCESS) result = temp_result;
     resizing_buffer_ptr->updated_operation_buffer_head = NULL;
 
@@ -193,15 +192,12 @@ int delete_resizing_buffer(resizing_buffer* resizing_buffer_ptr)
         free_memory(resizing_buffer_ptr->new_sub_hash_table_ptr, false);
         resizing_buffer_ptr->new_sub_hash_table_ptr = NULL;
     }
-
-    free_memory(resizing_buffer_ptr, false);
-
     return result;
 }
 
-int insert_delete_operation_to_resizing_buffer(hash_bucket *hash_bucket_ptr, uint32_t key_hash, const char *key)
+int insert_delete_operation_to_resizing_buffer(hash_bucket *hash_bucket_ptr, composite_key_hash key_hash, const char *key)
 {
-    if(hash_bucket_ptr == NULL || key == NULL || key_hash == 0) return ERR_INVALID_ARGUMENT;
+    if(hash_bucket_ptr == NULL || key == NULL) return ERR_INVALID_ARGUMENT;
 
     resizing_buffer* resizing_buffer_ptr = hash_bucket_ptr->resizing_buffer_ptr;
 
@@ -224,7 +220,7 @@ int insert_delete_operation_to_resizing_buffer(hash_bucket *hash_bucket_ptr, uin
         return ERR_MEMORY_ALLOCATION_FAILED;
     }
     strcpy(new_delete_operation.key, key);
-    new_delete_operation.hash = key_hash;
+    new_delete_operation.key_hash = key_hash;
 
     // Insert new delete operation into buffer
     resizing_buffer_ptr->delete_operation_buffer_ptr->operations[resizing_buffer_ptr->delete_operation_buffer_ptr->count] = new_delete_operation;
@@ -233,9 +229,9 @@ int insert_delete_operation_to_resizing_buffer(hash_bucket *hash_bucket_ptr, uin
     return SUCCESS;
 }
 
-int insert_update_operation_to_resizing_buffer(hash_bucket *hash_bucket_ptr, uint32_t key_hash, key_value_pair *kv_pair)
+int insert_update_operation_to_resizing_buffer(hash_bucket *hash_bucket_ptr, composite_key_hash key_hash, key_value_pair *kv_pair)
 {
-    if(hash_bucket_ptr == NULL || kv_pair == NULL || key_hash == 0) return ERR_INVALID_ARGUMENT;
+    if(hash_bucket_ptr == NULL || kv_pair == NULL) return ERR_INVALID_ARGUMENT;
     if(kv_pair->value == NULL || kv_pair->value_size == 0) return ERR_INVALID_ARGUMENT;
     
     int result = 0;
@@ -250,9 +246,9 @@ int insert_update_operation_to_resizing_buffer(hash_bucket *hash_bucket_ptr, uin
     return insert_linked_list_node(&hash_bucket_ptr->resizing_buffer_ptr->updated_operation_buffer_head, new_node);
 }
 
-int get_node_from_resizing_buffer(hash_bucket *hash_bucket_ptr, uint32_t key_hash, const char *key, bool ignore_current_operation_buffer, key_value_pair *kv_pair_out)
+int get_node_from_resizing_buffer(hash_bucket *hash_bucket_ptr, composite_key_hash key_hash, const char *key, bool ignore_current_operation_buffer, key_value_pair *kv_pair_out)
 {
-    if(hash_bucket_ptr == NULL || key == NULL || kv_pair_out == NULL || key_hash == 0) return ERR_INVALID_ARGUMENT;
+    if(hash_bucket_ptr == NULL || key == NULL || kv_pair_out == NULL) return ERR_INVALID_ARGUMENT;
 
     int result = 0;
     data_node* data_node_found = NULL;
@@ -401,19 +397,15 @@ int _free_new_operation_buffer(new_operation_buffer* buffer_ptr)
     return SUCCESS;
 }
 
-int _find_node_in_delete_operation_buffer(delete_operation_buffer* delete_operation_buffer_ptr, uint32_t key_hash, const char* key)
+int _find_node_in_delete_operation_buffer(delete_operation_buffer* delete_operation_buffer_ptr, composite_key_hash key_hash, const char* key)
 {
-    if(delete_operation_buffer_ptr == NULL || key == NULL || key_hash == 0) return ERR_INVALID_ARGUMENT;
+    if(delete_operation_buffer_ptr == NULL || key == NULL) return ERR_INVALID_ARGUMENT;
 
     for(unsigned int i = 0; i < delete_operation_buffer_ptr->count; i++)
     {
-        if(delete_operation_buffer_ptr->operations[i].hash == key_hash)
+        if(delete_operation_buffer_ptr->operations[i].key_hash.sub_bucket_hash == key_hash.sub_bucket_hash)
         {
-            if(strcmp(delete_operation_buffer_ptr->operations[i].key, key) == 0)
-            {
-
-                return SUCCESS; // Node is marked for deletion
-            }
+            if(strcmp(delete_operation_buffer_ptr->operations[i].key, key) == 0) return SUCCESS; // Node is marked for deletion
         }
     }
 
@@ -468,7 +460,7 @@ int _process_new_operation_buffer(new_operation_buffer* new_operation_buffer_ptr
     {
         result = _commit_data_node_operation(current_consumer_ptr->data_node_ptr, target_sub_hash_table_ptr);
         
-        if(result != SUCCESS && result != SUCESS_ADDED_NEW_NODE_RESZING_TRIGGERED) return result;
+        if(result != SUCCESS && result != SUCESS_ADDED_NEW_NODE_RESZING_TRIGGERED && result != SUCESS_ADDED_NEW_NODE) return result;
 
         if(current_consumer_ptr == head_ptr) break; // If we've reached the head of the buffer, exit the loop
         if(current_consumer_ptr->prev_node_ptr == NULL) break; // Safety check to prevent dereferencing NULL pointer
@@ -495,8 +487,8 @@ int _process_updated_operation_buffer(linked_list_node* updated_operation_buffer
             .value_size = current_node->data_node_ptr->data_size
         };
 
-        int result = upsert_node_to_sub_hash_table(target_sub_hash_table_ptr, current_node->key_hash, &temp_kv_pair);
-        if(result != SUCCESS) return result;
+        int result = upsert_node_to_sub_hash_table(target_sub_hash_table_ptr, current_node->data_node_ptr->key_hash, &temp_kv_pair);
+        if(result != SUCCESS && result != SUCESS_ADDED_NEW_NODE) return result;
 
         current_node = current_node->next_node_ptr;
     }
@@ -511,7 +503,7 @@ int _process_deleted_operation_buffer(delete_operation_buffer* delete_operation_
 
     for(unsigned int i = 0; i < delete_operation_buffer_ptr->count; i++)
     {
-        int result = delete_key_from_sub_hash_table(target_sub_hash_table_ptr, delete_operation_buffer_ptr->operations[i].hash, delete_operation_buffer_ptr->operations[i].key);
+        int result = delete_key_from_sub_hash_table(target_sub_hash_table_ptr, delete_operation_buffer_ptr->operations[i].key_hash, delete_operation_buffer_ptr->operations[i].key);
         if(result != SUCCESS) return result;
     }
 

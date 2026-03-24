@@ -1,5 +1,5 @@
 # Distributed KeyStore — Codebase Memory Reference
-> Updated: 2026-03-17 | Version: v1.0 (pre-release)
+> Updated: 2026-03-23 | Version: v1.0 (pre-release)
 
 ---
 
@@ -8,7 +8,7 @@
 A concurrent, in-memory key-value store written in C (C11). The architecture is a **two-level hash table** (hash table → hash bucket → sub-hash-table → sub-hash-bucket → linked list → data node). The design prioritises:
 - Fine-grained locking (per-bucket `pthread_rwlock_t`, per-data-node `pthread_mutex_t`)
 - Lock-free resize signalling via `pthread_spinlock_t`
-- MurmurHash3 (32-bit, seeded) for key hashing
+- Dual-seed MurmurHash3 (64-bit) for independent bucket and sub-bucket routing
 - Optional memory pool for `linked_list_node` pre-allocation
 - A background "chase buffer" worker for concurrent resize data migration
 
@@ -48,7 +48,7 @@ tests/for_c/
 
 | Type | Description |
 |------|-------------|
-| `data_node` | Leaf storage: `key_hash (u32)`, `data (uchar*)`, `data_size`, `is_concurrency_enabled`, `pthread_mutex_t lock`, `is_deleted`, `key[]` (FAM) |
+| `data_node` | Leaf storage: `key_hash (composite_key_hash)`, `data (uchar*)`, `data_size`, `is_concurrency_enabled`, `pthread_mutex_t lock`, `is_deleted`, `key[]` (FAM) |
 | `linked_list_node` | Singly-linked collision chain: `key_hash`, `data_node* data_node_ptr`, `linked_list_node* next_node_ptr` |
 | `double_linked_list_node` | Doubly-linked: `key_hash`, `data_node*`, `prev_node_ptr`, `next_node_ptr` — used exclusively in the resize `new_operation_buffer` |
 | `key_value_pair` | Transfer struct: `char* key`, `unsigned char* value`, `size_t value_size` |
@@ -150,7 +150,8 @@ tests/for_c/
 **File:** `key_store.c` / `key_store.h`
 
 **Global state:**
-- `static uint32_t g_hash_seed` — random seed generated at init via `time(NULL)`
+- `static uint64_t g_bucket_hash_seed` — random seed for bucket-level hashing, generated at init via `clock_gettime(CLOCK_MONOTONIC)`
+- `static uint64_t g_sub_bucket_hash_seed` — random seed for sub-bucket hashing, XOR’d with `0x9e3779b97f4a7c15` for guaranteed distinctness
 - `hash_table_memory_pool* g_hash_table_pool` — singleton hash table
 
 **Functions:**
@@ -163,7 +164,7 @@ tests/for_c/
 | `get_key` | `(const char* key, key_value_pair* value_out) → int` | Validates; hashes; calls `get_key_value_from_hash_table` |
 | `delete_key` | `(const char* key) → int` | Validates; hashes; calls `delete_key_from_hash_table` |
 
-**Important constraint:** `key_hash == UINT32_MAX` is treated as a hash error (murmur returns `UINT32_MAX` on null key).
+**Important constraint:** `key_hash == UINT64_MAX` is treated as a hash error (murmur returns `UINT64_MAX` on null key).
 
 ---
 
@@ -173,13 +174,13 @@ tests/for_c/
 
 | Function | Signature | Notes |
 |----------|-----------|-------|
-| `hash_function_murmur_32` | `(const char* key, uint32_t seed) → uint32_t` | MurmurHash3 32-bit; returns `UINT32_MAX` on NULL input |
+| `hash_function_murmur_64` | `(const char* key, uint64_t seed) → uint64_t` | MurmurHash3 64-bit; returns `UINT64_MAX` on NULL input |
 
 **Implementation details:**
-- Block size: 4 bytes; processes in 4-byte blocks then tail bytes
-- Mix constants: `0xcc9e2d51`, `0x1b873593`
-- Finalization avalanche: XOR-shift with `0x85ebca6b`, `0xc2b2ae35`
-- Left circular rotation helper: `left_circular_rotate(data, bits, 32)`
+- Block size: 8 bytes; processes in 8-byte blocks then tail bytes
+- Mix constants: `0x87c37b91114253d5`, `0x4cf5ad432745937f`
+- Finalization avalanche: XOR-shift with `0xff51afd7ed558ccd`, `0xc4ceb9fe1a85ec53`
+- Left circular rotation helper: `left_circular_rotate(data, bits, 64)`
 
 ---
 
@@ -191,11 +192,11 @@ tests/for_c/
 |----------|-----------|-------|
 | `create_new_hash_table` | `(hash_table_configuration, hash_table_memory_pool**) → int` | `calloc`s bucket array; eagerly initialises all buckets if concurrency enabled |
 | `cleanup_hash_table` | `(hash_table_memory_pool*) → int` | Iterates all buckets → `cleanup_hash_bucket` |
-| `upsert_node_to_hash_table` | `(pool*, key_hash, kv_pair*) → int` | Routes to bucket via `key_hash % total_blocks`; lazy bucket init if not concurrent |
+| `upsert_node_to_hash_table` | `(pool*, key_hash, kv_pair*) → int` | Routes to bucket via `key_hash.bucket_hash % total_blocks`; lazy bucket init if not concurrent |
 | `get_key_value_from_hash_table` | `(pool*, key_hash, key, kv_pair_out*) → int` | Routes to bucket |
 | `delete_key_from_hash_table` | `(pool*, key_hash, key) → int` | Routes to bucket |
 
-**Bucket selection:** `bucket_index = key_hash % total_blocks` (modulo, NOT bitmask — top-level only).
+**Bucket selection:** `bucket_index = key_hash.bucket_hash % total_blocks` (modulo, NOT bitmask — top-level only).
 
 ---
 
@@ -285,12 +286,12 @@ The chase buffer is a `new_operation_buffer` (doubly-linked list protected by `p
 |----------|-------|
 | `create_new_sub_hash_table` | `calloc`s `sub_hash_table_memory_pool` + bucket array; eager init if concurrency or `earlyInitialize = true` |
 | `cleanup_sub_hash_table` | Iterates all sub-buckets → `cleanup_sub_hash_bucket`; frees array |
-| `upsert_node_to_sub_hash_table` | Finds bucket via `key_hash & (total_blocks - 1)` (bitmask — power-of-2 guaranteed); uses a split update-then-add path: first `update_node_in_sub_hash_bucket`, then on `ERR_DATA_NODE_NOT_FOUND` falls back to `add_node_to_sub_hash_bucket` |
+| `upsert_node_to_sub_hash_table` | Finds bucket via `key_hash.sub_bucket_hash & (total_blocks - 1)` (bitmask — power-of-2 guaranteed); uses a split update-then-add path: first `update_node_in_sub_hash_bucket`, then on `ERR_DATA_NODE_NOT_FOUND` falls back to `add_node_to_sub_hash_bucket` |
 | `get_key_store_value_from_sub_hash_table` | Routes to sub-bucket |
 | `delete_key_from_sub_hash_table` | Routes to sub-bucket |
 | `is_node_in_sub_hash_table` | Existence check without reading value |
 
-**Bucket index:** `key_hash & (total_blocks - 1)` — bitmasked, requires power-of-2 bucket size.
+**Bucket index:** `key_hash.sub_bucket_hash & (total_blocks - 1)` — bitmasked, requires power-of-2 bucket size.
 
 ---
 
@@ -298,7 +299,7 @@ The chase buffer is a `new_operation_buffer` (doubly-linked list protected by `p
 
 **File:** `sub_hash_bucket_operation.c` / `sub_hash_bucket_operation.h`
 
-**Struct:** `sub_hash_bucket_operation_args` — `{ sub_hash_bucket*, const char* key, uint32_t key_hash }`
+**Struct:** `sub_hash_bucket_operation_args` — `{ sub_hash_bucket*, const char* key, composite_key_hash key_hash }`
 
 **Locking model:**
 - List operations use `pthread_rwlock_t sub_hash_bucket_lock` via `_lock_wrapper_for_linked_list_node_operation`
@@ -531,7 +532,7 @@ Run via `test_runner.c` using the **Unity** framework.
 
 5. **`free_memory(ptr, is_pool=false)` for non-pool allocations:** Nearly all calls pass `is_pool = false`; only the memory manager itself uses `is_pool = true` internally via `_free_memory_to_pool`.
 
-6. **`key_hash == 0` treated as invalid** in `_get_hash_table_bucket`, `_get_sub_hash_table_bucket`, and several resizing-buffer entry points. This is a guard but means keys that naturally hash to 0 would fail. The `UINT32_MAX` sentinel is used separately for Murmur error detection.
+6. **`key_hash == 0` treated as invalid** in `_get_hash_table_bucket`, `_get_sub_hash_table_bucket`, and several resizing-buffer entry points. This is a guard but means keys that naturally hash to 0 would fail. The `UINT64_MAX` sentinel is used separately for Murmur error detection.
 
 7. **No WAL / persistence:** v1.0 is fully in-memory. WAL stubs are reserved for v2.0 (mark with `/* WAL: v2.0 */`).
 
@@ -559,9 +560,9 @@ Run via `test_runner.c` using the **Unity** framework.
 - [x] Unity unit tests across all modules
 - [ ] Benchmark parity with prior 1M-operation global-hash-table baseline
 - [ ] Staged benchmark campaign at 3M and 5M operations
-- [ ] Valgrind clean confirmed (needs re-run)
+- [x] Valgrind clean confirmed (149 tests, 0 failures, 630 allocs / 630 frees, 0 errors)
 - [ ] `key_hash == 0` guard reviewed (edge case for some key strings)
-- [ ] Generate 2 hash for hash table and sub hash table to improve the distribution
+- [x] Generate 2 hash for hash table and sub hash table to improve the distribution
 - [ ] User finer locks for resizing
 - [ ] Refactor back ground task manager with lazy memory pool
 - [ ] Refactor Memory pool
@@ -574,10 +575,10 @@ Run via `test_runner.c` using the **Unity** framework.
 
 ### Current v1 Priority Order (2026-03-17)
 
-1. Fix routing and hash distribution first using dual-hash distribution or a second independently mixed hash view.
+1. ~~Fix routing and hash distribution first using dual-hash distribution or a second independently mixed hash view.~~ **DONE** — dual-seed MurmurHash3-64 implemented with `composite_key_hash`.
 2. Rework memory-pool sizing and scope around expected entry count and benchmark workload, not only top-level bucket count.
 3. Add a bloom filter to reduce negative-path cost on unique-key set traffic.
-4. Revisit finer resize locking only after routing, pool sizing, and bloom-filter work are in place.
+4. Revisit finer resize locking only after pool sizing and bloom-filter work are in place.
 5. Keep background task manager refactor and logging abstraction in the v1 hardening scope.
 
 ### Current Benchmark Direction
@@ -595,6 +596,18 @@ Run via `test_runner.c` using the **Unity** framework.
 ---
 
 ## 11. Session Log
+
+### 2026-03-23
+- Full documentation refresh across all docs (README.md, API.md, ERROR_CODES.md, docs/architecture.md, docs/memory.md, docs/progress.md)
+- **Major correction:** Hash function upgraded from MurmurHash3 32-bit to **64-bit** (`hash_function_murmur_64`, `uint64_t`). All docs updated.
+- **Major correction:** Dual-seed composite key hashing implemented (`g_bucket_hash_seed` + `g_sub_bucket_hash_seed` with golden-ratio XOR separation). All docs updated.
+- Seed generation now uses `clock_gettime(CLOCK_MONOTONIC)` nanosecond resolution instead of `time(NULL)`
+- Error sentinel updated from `UINT32_MAX` to `UINT64_MAX` in all docs
+- Checklist item "Generate 2 hash for hash table and sub hash table" marked as **DONE**
+- Mix constants updated in §5.2: `0x87c37b91114253d5` / `0x4cf5ad432745937f` (block), `0xff51afd7ed558ccd` / `0xc4ceb9fe1a85ec53` (finalization)
+- Block size updated from 4 bytes to 8 bytes in hash function docs
+- All routing descriptions updated to reference `composite_key_hash.bucket_hash` and `.sub_bucket_hash`
+- Priority order updated: dual-hash routing marked as completed; next priority is memory-pool refactor
 
 ### 2026-03-17
 - Full memory refresh: re-read all source files, tests, and docs

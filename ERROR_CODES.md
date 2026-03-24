@@ -129,8 +129,8 @@ if (pthread_mutex_lock(&bucket->mutex) != 0) return ERR_MUTEX_LOCK_ACQUIRE_FAILE
 if (pthread_mutex_unlock(&bucket->mutex) != 0) return ERR_MUTEX_LOCK_RELEASE_FAILED; // -33
 
 // Hash/Indexing
-uint32_t key_hash = hash_function_murmur_32(key, seed);
-if (key_hash == UINT32_MAX) return ERR_HASH_COMPUTE_FAILED; // -40
+uint64_t key_hash = hash_function_murmur_64(key, seed);
+if (key_hash == UINT64_MAX) return ERR_HASH_COMPUTE_FAILED; // -40
 if (index < 0) return ERR_INVALID_BUCKET_INDEX; // -41
 
 // Hash Table/Bucket

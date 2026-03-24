@@ -7,12 +7,12 @@
 #pragma region Private Helper Function Declarations
 int _allocate_and_init_data_node(size_t key_len, bool is_concurrency_enabled, data_node** data_node_ptr);
 int _add_data_to_node(data_node *node_ptr, key_value_pair* key_pair);
-int _add_key_to_node(data_node *node_ptr, const char *key, size_t key_len, uint32_t key_hash);
+int _add_key_to_node(data_node *node_ptr, const char *key, size_t key_len, composite_key_hash key_hash);
 int _update_operation_counters(data_node_operation_t operation_type, int operation_result);
 #pragma endregion
 
 #pragma region Private Function Declarations
-int _create_new_data_node(uint32_t key_hash, key_value_pair* kv_pair, bool is_concurrency_enabled, data_node** new_data_node_out);
+int _create_new_data_node(composite_key_hash key_hash, key_value_pair* kv_pair, bool is_concurrency_enabled, data_node** new_data_node_out);
 int _edit_data_node_value(data_node *node_ptr, key_value_pair* new_key_pair);
 int _read_data_from_node(data_node *node_ptr, key_value_pair* key_value_out);
 int _delete_data_node(data_node* data_node_ptr);
@@ -27,7 +27,7 @@ data_node_operation_stats g_data_node_operation_counters = {0};
 
 #pragma region Public Function Definitions
 
-int create_new_data_node(uint32_t key_hash, key_value_pair* kv_pair, bool is_concurrency_enabled, data_node** new_data_node_out) 
+int create_new_data_node(composite_key_hash key_hash, key_value_pair* kv_pair, bool is_concurrency_enabled, data_node** new_data_node_out) 
 {
     int result = _create_new_data_node(key_hash, kv_pair, is_concurrency_enabled, new_data_node_out);
     return _update_operation_counters(CREATE_NODE, result);
@@ -62,7 +62,7 @@ int soft_delete_data_node(data_node* data_node_ptr) {
 
 #pragma region Private Function Definitions
 
-int _create_new_data_node(uint32_t key_hash, key_value_pair* kv_pair, bool is_concurrency_enabled, data_node** new_data_node_out) 
+int _create_new_data_node(composite_key_hash key_hash, key_value_pair* kv_pair, bool is_concurrency_enabled, data_node** new_data_node_out) 
 {
     // Argument validation
     if (kv_pair == NULL || new_data_node_out == NULL) return ERR_INVALID_ARGUMENT; 
@@ -246,10 +246,10 @@ int _add_data_to_node(data_node *node_ptr, key_value_pair* key_pair)
  * @param node_ptr Pointer to the data_node structure to which the key will be added.
  * @param key The key string to be copied.
  * @param key_len Length of the key string including null terminator.
- * @param key_hash Hash value of the key to be stored in the node.
+ * @param key_hash Composite hash value of the key to be stored in the node, The composite key contains both bucket hash and sub bucket hash of the key.
  * @return 0 on success.
  */
-int _add_key_to_node(data_node *node_ptr, const char *key, size_t key_len, uint32_t key_hash) 
+int _add_key_to_node(data_node *node_ptr, const char *key, size_t key_len, composite_key_hash key_hash) 
 {
     if (node_ptr == NULL || key == NULL || key[0] == '\0' || key_len == 0) return ERR_INVALID_ARGUMENT; // Handle null pointer or invalid key
 

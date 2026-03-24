@@ -19,20 +19,21 @@ typedef enum{
  * This function allocates memory for a new list_node, initializes it with the provided
  * key hash and data node, and sets the next pointer to NULL.
  *
- * @param key_hash The hash value of the key to be stored in the new node.
+ * @param key_hash Composite hash value of the key to be stored in the new node, The composite key contains both bucket hash and sub bucket hash of the key.
  * @param data Pointer to the data_node to be associated with the new list node.
  * @param new_list_node_out Pointer to receive the newly created list_node.
  * @return int Returns 0 on success, or a negative value on failure.
  * @note This operation does not require to be passed via locking wrapper,
  *  a lock will be acquired during memory allocation if concurrency is enabled.
+ * @note This function will use the sub bucket hash of the key to create the linked list node.
  */
-int create_new_linked_list_node(uint32_t key_hash, data_node *data, linked_list_node **new_list_node_out);
+int create_new_linked_list_node(composite_key_hash key_hash, data_node *data, linked_list_node **new_list_node_out);
 
 /**
  * @fn insert_linked_list_node
  * @brief Inserts a new node into the linked list.
  * 
- * This function insserts a new list_node at the head of the linked list
+ * This function inserts a new list_node at the head of the linked list
  *
  * @param node_header_ptr Pointer to the linked list head.
  * @param new_list_node Pointer to the newly created list_node to be inserted.
@@ -48,12 +49,12 @@ int insert_linked_list_node(linked_list_node **node_header_ptr, linked_list_node
  * and returns its associated data_node.
  * @param node_header_ptr Pointer to the head of the linked list.
  * @param key The key to search for in the list.
- * @param key_hash The hash value of the key to optimize search.
+ * @param key_hash Composite hash value of the key to optimize search, The composite key contains both bucket hash and sub bucket hash of the key.
  * @param include_soft_deleted Boolean flag indicating whether to include soft-deleted nodes in the search.
  * @param data_node_out Pointer to a data_node pointer to receive the found node's data.
  * @return int Returns 0 on success, or a non-zero value if the node was not found or error occurs. 
  **/
-int get_data_node_from_linked_list(linked_list_node *node_header_ptr, const char *key, uint32_t key_hash, bool include_soft_deleted, data_node **data_node_out);
+int get_data_node_from_linked_list(linked_list_node *node_header_ptr, const char *key, composite_key_hash key_hash, bool include_soft_deleted, data_node **data_node_out);
 
 
 /**
@@ -66,7 +67,7 @@ int get_data_node_from_linked_list(linked_list_node *node_header_ptr, const char
  * @param node_header_ptr Pointer to the head of the linked list.
  * @return int Returns 0 on success.
  */
-int delete_all_linked_list_nodes(linked_list_node *node_header_ptr);
+int delete_all_linked_list_nodes(linked_list_node **node_header_ptr);
 
 
 /**
@@ -78,9 +79,11 @@ int delete_all_linked_list_nodes(linked_list_node *node_header_ptr);
  * frees the memory allocated for each deleted list_node, and updates the count of deleted nodes.
  *
  * @param node_header_ptr Pointer to the head of the linked list.
- * @param deleted_count_out Pointer to an integer to receive the count of deleted nodes.
- * @return int Returns deleted node count on success. or a negative value on failure.
+ * @return int Returns the count of nodes that were cleaned up (deleted) on success, or a negative value on failure.
+ * @note The count of deleted nodes is returned as the function's return value, 
+ * where a non-negative value indicates success and represents the number of nodes that were cleaned up,
+ * while a negative value indicates an error occurred during the cleanup process.
  */
-int cleanup_deleted_linked_list_nodes(linked_list_node *node_header_ptr);
+int cleanup_deleted_linked_list_nodes(linked_list_node **node_header_ptr);
 
 #endif // LINKED_LIST_OPERATIONS_H
