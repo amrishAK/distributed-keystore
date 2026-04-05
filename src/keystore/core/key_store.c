@@ -18,7 +18,6 @@ hash_table_memory_pool* g_hash_table_pool = NULL;
 
 
 #pragma region Private Function Declarations
-static uint64_t _generate_hash_seed(void);
 static int _get_key_hash(const char *key, composite_key_hash *key_hash_out);
 #pragma endregion
 
@@ -49,8 +48,8 @@ int initialise_key_store(hash_table_configuration config, double pre_memory_allo
     // Generate random seeds for hash functions to ensure different hash distributions across runs.
     // XOR the sub-bucket seed with a golden-ratio constant to guarantee the two seeds are always
     // distinct, even when both calls resolve to the same nanosecond timestamp.
-    g_bucket_hash_seed     = _generate_hash_seed();
-    g_sub_bucket_hash_seed = _generate_hash_seed() ^ 0x9e3779b97f4a7c15ULL;
+    g_bucket_hash_seed     = generate_hash_seed();
+    g_sub_bucket_hash_seed = derive_distinct_seed(generate_hash_seed());
 
     int hash_buckets_init_result = create_new_hash_table(config, &g_hash_table_pool);
     if( hash_buckets_init_result != 0) {
@@ -119,24 +118,6 @@ int delete_key(const char *key)
 #pragma endregion
 
 #pragma region Private Function Definitions
-
-/**
- * @fn _generate_hash_seed
- * @brief Generates a seed for the hash function using a monotonic nanosecond timestamp.
- *
- * Uses CLOCK_MONOTONIC to obtain sub-microsecond resolution, avoiding the 1-second
- * granularity of time()/`_time64()` which causes consecutive calls to return the same
- * value and therefore produce identical bucket and sub-bucket seeds.
- *
- * @return A 64-bit unsigned integer seed derived from the current monotonic time.
- */
-uint64_t _generate_hash_seed(void)
-{
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
-}
-
 
 /**
  * @fn _get_key_hash

@@ -222,4 +222,26 @@ typedef struct{
 } delete_operation_buffer;
 
 
+/**
+ * @struct bloom_filter_t
+ * @brief Represents a Bloom filter for probabilistic determination of key presence in sub-buckets.
+ * The bloom_filter_t structure encapsulates the parameters and data for a Bloom filter, which is used to efficiently determine if a key is likely present in a sub-bucket during resizing operations. It includes hash seeds for generating multiple hash functions, the size of the bit array, and the bit array itself.
+ * Fields:
+ *  - hash_seed1: The first hash seed used for generating hash functions.
+ * - hash_seed2: The second hash seed used for generating hash functions.
+ * - num_hashes: The number of hash functions to be used in the Bloom filter.
+ * - bit_array_size: The size of the bit array in bits.
+ * - bit_array: Pointer to the bit array representing the Bloom filter, where each bit indicates the presence of a key in the sub-bucket.
+ */
+typedef struct
+{
+    uint64_t hash_seed1;
+    uint64_t hash_seed2;
+    uint8_t num_hashes;
+    uint32_t bit_array_size;
+    uint8_t* bit_array;
+} bloom_filter_t;
+
+
+
 #endif // CUSTOM_TYPE_DEFINITIONS_H

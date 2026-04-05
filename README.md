@@ -243,6 +243,8 @@ Apache 2.0 — see [LICENSE](./LICENSE) for full terms.
 
 Copyright 2026 Amrish Arunachalam Kulasekaran
 
-## Author
+## Author & Maintainer
 
-Amrish Arunachalam Kulasekaran (amrishAK)
+**Amrish Arunachalam Kulasekaran** — [@amrishAK](https://github.com/amrishAK)
+
+This is a solo-maintained open source project. Bug reports and feedback are welcome via GitHub Issues. Pull requests may be accepted at maintainer discretion — please open an issue to discuss significant changes before submitting a PR.
