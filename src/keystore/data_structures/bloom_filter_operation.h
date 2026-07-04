@@ -50,9 +50,17 @@ int add_key_to_bloom_filter(composite_key_hash key_hash, bloom_filter_t* bloom_f
  * This function uses the Bloom filter's hash functions to check if the specified key is likely present. It provides a probabilistic result, meaning that it may indicate that a key is present when it is not (false positive), but it will never indicate that a key is absent if it is indeed present (no false negatives).
  * @param key_hash The hash of the key to be checked in the Bloom filter.
  * @param bloom_filter Pointer to the bloom_filter_t structure representing the Bloom filter.
- * @param result_out Pointer to a boolean variable where the result will be stored. True indicates the key is likely present, false indicates it is definitely not present.
+ * @return Returns BLOOM_FILTER_CHECK_KEY_MAY_EXIST (31) if the key is likely present, BLOOM_FILTER_CHECK_KEY_NOT_EXIST (32) if the key is definitely not present, or a non-zero error code on failure (e.g., if the bloom_filter pointer is NULL).
+ */
+int check_key_in_bloom_filter(composite_key_hash key_hash, bloom_filter_t* bloom_filter);
+
+/**
+ * @fn reset_bloom_filter
+ * @brief Resets the Bloom filter.
+ * This function clears the Bloom filter's bit array, effectively removing all keys from the filter.
+ * @param bloom_filter Pointer to the bloom_filter_t structure representing the Bloom filter to be reset.
  * @return Returns 0 on success, or a non-zero error code on failure (e.g., if the bloom_filter pointer is NULL).
  */
-int check_key_in_bloom_filter(composite_key_hash key_hash, bloom_filter_t* bloom_filter, bool* result_out);
+int reset_bloom_filter(bloom_filter_t* bloom_filter);
 
 #endif // BLOOM_FILTER_OPERATION_H

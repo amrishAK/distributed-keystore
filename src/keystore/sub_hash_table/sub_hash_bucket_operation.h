@@ -2,13 +2,8 @@
 #define SUB_HASH_BUCKET_OPERATION_H
 
 #include "type_definitions/hash_bucket_type_definition.h"
+#include "type_definitions/custom_type_definitions.h"
 #include "type_definitions/error_code_definitions.h"
-
-typedef struct {
-    sub_hash_bucket* sub_hash_bucket_ptr;
-    const char *key;
-    composite_key_hash key_hash;
-} sub_hash_bucket_operation_args;
 
 /**
  * @fn initialise_sub_hash_bucket

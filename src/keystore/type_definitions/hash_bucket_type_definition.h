@@ -25,16 +25,21 @@
  *   - total_node_count: Total number of nodes in the bucket (including deleted).
  *   - is_initialized: Flag to indicate if the bucket has been initialized.
  *   - is_concurrency_enabled: Flag to indicate if concurrency control is enabled for the bucket.
+ *   - is_bloom_filter_enabled: Flag to indicate if bloom filter is enabled for the bucket.
+ *   - max_linked_list_chain_length: Maximum allowed length of the linked list chain before resizing is triggered.
+ *   - bloom_filter_ptr: Pointer to the bloom filter associated with this sub-hash-bucket for quick membership checks.
  *   - sub_hash_bucket_lock: Read-write lock for synchronizing access to the bucket.
  */
-typedef struct 
+typedef struct sub_hash_bucket
 {
     linked_list_node* linked_list_head;
     unsigned int active_node_count;
     unsigned int total_node_count;
     bool is_initialized;
     bool is_concurrency_enabled;
+    bool is_bloom_filter_enabled;
     unsigned int max_linked_list_chain_length;
+    bloom_filter_t* bloom_filter_ptr;
     pthread_rwlock_t sub_hash_bucket_lock;
 } sub_hash_bucket;
 

@@ -230,7 +230,8 @@ typedef struct{
  *  - hash_seed1: The first hash seed used for generating hash functions.
  * - hash_seed2: The second hash seed used for generating hash functions.
  * - num_hashes: The number of hash functions to be used in the Bloom filter.
- * - bit_array_size: The size of the bit array in bits.
+ * - bit_count: The number of bits in the bit array.
+ * - array_size: The size of the bit array in bytes.
  * - bit_array: Pointer to the bit array representing the Bloom filter, where each bit indicates the presence of a key in the sub-bucket.
  */
 typedef struct
@@ -238,10 +239,30 @@ typedef struct
     uint64_t hash_seed1;
     uint64_t hash_seed2;
     uint8_t num_hashes;
-    uint32_t bit_array_size;
+    uint32_t bit_count; // Number of bits in the bit array
+    uint32_t array_size; // Size of the bit array in bytes
     uint8_t* bit_array;
 } bloom_filter_t;
 
+/**
+ * @struct sub_hash_bucket_operation_args
+ * @brief Represents the arguments for operations on a sub-hash-bucket.
+ *
+ * The sub_hash_bucket_operation_args structure encapsulates the information needed to perform operations
+ * on a sub-hash-bucket, including the pointer to the sub-hash-bucket, the key, and the composite key hash.
+ * This structure is used in the context of managing operations such as adding, updating, or deleting nodes
+ * in a sub-hash-bucket.
+ *
+ * Fields:
+ *   - sub_hash_bucket_ptr: Pointer to the sub-hash-bucket on which the operation is to be performed.
+ *   - key: Pointer to the null-terminated string representing the key for the operation.
+ *   - key_hash: Composite key hash used for identifying the key within the sub-hash-bucket.
+ */
+typedef struct {
+    struct sub_hash_bucket* sub_hash_bucket_ptr;
+    const char *key;
+    composite_key_hash key_hash;
+} sub_hash_bucket_operation_args;
 
 
 #endif // CUSTOM_TYPE_DEFINITIONS_H
