@@ -1,4 +1,4 @@
-# Reviewer Cache (distributed-keystore)
+# Reviewer Cache (keystore)
 <!-- Auto-maintained by C-Code-Reviewer. Do not edit manually. -->
 
 ## Language

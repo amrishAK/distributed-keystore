@@ -1,5 +1,5 @@
 /*
- * Unit tests for Bloom filter operations in the distributed keystore.
+ * Unit tests for Bloom filter operations in the KeyStore.
  *
  * This suite covers initialization, cleanup, add, and check operations for the Bloom filter.
  * Tests include happy paths, boundary conditions, error handling, idempotency, and basic probabilistic behaviour.

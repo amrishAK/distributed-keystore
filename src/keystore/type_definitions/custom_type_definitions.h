@@ -33,7 +33,7 @@ typedef struct
 
 /**
  * @struct data_node
- * @brief Represents a key-value entry in the distributed keystore.
+ * @brief Represents a key-value entry in the KeyStore.
  *
  * The data_node structure stores the key, its hash, the value, and metadata for concurrency control.
  * It is used as the fundamental storage unit within hash buckets and linked lists.

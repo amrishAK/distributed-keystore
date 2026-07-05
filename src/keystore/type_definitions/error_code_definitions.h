@@ -2,7 +2,7 @@
  * @file error_code_definitions.h
  * @brief Defines standardized error codes for the keystore project.
  * This header provides a set of predefined error codes to be used
- * across various modules of the distributed keystore for consistent error handling.
+ * across various modules of the KeyStore for consistent error handling.
  * Each error code is represented as a negative integer, categorized by the type of error.
  * Categories include general errors, argument validation, memory/resource management,
  * concurrency/locking, hash/indexing, hash table operations, sub-hash table operations,

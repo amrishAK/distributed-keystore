@@ -1,6 +1,6 @@
 /**
  * @file bloom_filter_operation.h
- * @brief Header file for Bloom filter operations in the distributed keystore.
+ * @brief Header file for Bloom filter operations in the KeyStore.
  * This header defines the interface for initializing, cleaning up, adding keys to, and checking keys in a Bloom filter. The Bloom filter is used to efficiently determine the potential presence of keys in sub-buckets during resizing operations, helping to optimize lookups and reduce unnecessary disk accesses.
  * The functions declared in this header allow for the management of the Bloom filter's lifecycle and its interaction with keys, providing a probabilistic mechanism to enhance the performance of the keystore.
  * Functions:

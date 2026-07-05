@@ -2,7 +2,7 @@
 
 # Error Codes Reference
 
-This document lists all custom error and return codes used in the distributed-keystore project. Use these codes for consistent error handling, debugging, and documentation. Always return `0` for success, and use the most specific negative code for errors.
+This document lists all custom error and return codes used in the KeyStore project. Use these codes for consistent error handling, debugging, and documentation. Always return `0` for success, and use the most specific negative code for errors.
 
 ---
 
@@ -15,89 +15,159 @@ This document lists all custom error and return codes used in the distributed-ke
 | 0     | SUCCESS      | Operation completed successfully     |
 | -1    | ERR_FAILURE  | General/unspecified failure          |
 
-### Extended Success Codes
-| Code  | Name                                     | Meaning/Description                                      |
-|-------|------------------------------------------|----------------------------------------------------------|
-| 10    | SUCESS_ADDED_NEW_NODE                    | New key-value node inserted successfully                 |
-| 11    | SUCCESS_ADDED_TO_PENDING_LIST            | Entry added to resize pending buffer (internal)          |
-| 20    | SUCESS_ADDED_NEW_NODE_RESZING_TRIGGERED  | New node inserted and sub-hash-table resize triggered    |
+### Extended Success Codes — Insertion
+| Code  | Name                                     | Meaning/Description                                      | When Used |
+|-------|------------------------------------------|----------------------------------------------------------|-----------|
+| 10    | SUCESS_ADDED_NEW_NODE                    | New key-value node inserted successfully                 | Direct insert into bucket |
+| 11    | SUCCESS_ADDED_TO_PENDING_LIST            | Entry added to resize pending buffer (internal)          | Pending resize queue |
+| 20    | SUCESS_ADDED_NEW_NODE_RESZING_TRIGGERED  | New node inserted and sub-hash-table resize triggered    | Insert triggers resize |
+
+### Extended Success Codes — Bloom Filter Checks
+| Code  | Name                                     | Meaning/Description                                      | When Used |
+|-------|------------------------------------------|----------------------------------------------------------|-----------|
+| 30    | BLOOM_FILTER_DISABLED                    | Bloom filter check skipped (feature disabled)            | Bloom filter off |
+| 31    | BLOOM_FILTER_CHECK_KEY_MAY_EXIST         | Key may exist in data structure (bloom filter positive)  | Proceed with lookup |
+| 32    | BLOOM_FILTER_CHECK_KEY_NOT_EXIST         | Key definitely does not exist (bloom filter negative)    | Short-circuit lookup |
 
 ### Argument/Validation Errors
-| Code  | Name                   | Meaning/Description                       |
-|-------|------------------------|-------------------------------------------|
-| -11   | ERR_INVALID_ARGUMENT   | Invalid argument (e.g., NULL pointer)     |
-| -12   | ERR_INVALID_CONFIG     | Invalid configuration or parameter        |
+| Code  | Name                   | Meaning/Description                       | Recovery |
+|-------|------------------------|-------------------------------------------|----------|
+| -11   | ERR_INVALID_ARGUMENT   | Invalid argument (e.g., NULL pointer)     | Validate all inputs before calling; check for NULL pointers |
+| -12   | ERR_INVALID_CONFIG     | Invalid configuration or parameter        | Verify config values (bucket size > 0, valid sizes) |
+
 
 ### Memory/Resource Management
-| Code  | Name                        | Meaning/Description                                 |
-|-------|-----------------------------|-----------------------------------------------------|
-| -20   | ERR_MEMORY_ALLOCATION_FAILED| Memory allocation failed (malloc/calloc returned 0) |
-| -21   | ERR_RESOURCE_INIT_FAILED    | Resource initialization failed (e.g., mutex init)   |
-| -22   | ERR_RESOURCE_CLEANUP_FAILED | Resource cleanup failed (e.g., mutex destroy)       |
+| Code  | Name                        | Meaning/Description                                 | Recovery |
+|-------|-----------------------------|-----------------------------------------------------|----------|
+| -20   | ERR_MEMORY_ALLOCATION_FAILED| Memory allocation failed (malloc/calloc returned 0) | Check available memory; reduce allocation size; retry with backoff |
+| -21   | ERR_RESOURCE_INIT_FAILED    | Resource initialization failed (e.g., mutex init)   | Verify system resources available; check platform support |
+| -22   | ERR_RESOURCE_CLEANUP_FAILED | Resource cleanup failed (e.g., mutex destroy)       | Log error; continue cleanup; investigate resource state |
+
 
 ### Concurrency/Locking
-| Code  | Name                         | Meaning/Description                |
-|-------|------------------------------|------------------------------------|
-| -30   | ERR_RW_LOCK_ACQUIRE_FAILED   | RW lock acquire failed             |
-| -31   | ERR_RW_LOCK_RELEASE_FAILED   | RW lock release failed             |
-| -32   | ERR_MUTEX_LOCK_ACQUIRE_FAILED| Mutex lock acquire failed          |
-| -33   | ERR_MUTEX_LOCK_RELEASE_FAILED| Mutex lock release failed          |
-| -34   | ERR_GENERIC_LOCK_ACQUIRE_FAILED | Custom lock acquire failed        |
-| -35   | ERR_GENERIC_LOCK_RELEASE_FAILED | Custom lock release failed        |
+| Code  | Name                         | Meaning/Description                | Recovery |
+|-------|------------------------------|------------------------------------|----------|
+| -30   | ERR_RW_LOCK_ACQUIRE_FAILED   | RW lock acquire failed             | Check lock state; verify no deadlock; retry with timeout |
+| -31   | ERR_RW_LOCK_RELEASE_FAILED   | RW lock release failed             | Log error; investigate lock ownership; enable debug tracing |
+| -32   | ERR_MUTEX_LOCK_ACQUIRE_FAILED| Mutex lock acquire failed          | Check lock availability; verify lock initialization |
+| -33   | ERR_MUTEX_LOCK_RELEASE_FAILED| Mutex lock release failed          | Log error; verify caller owns lock; check for corruption |
+| -34   | ERR_GENERIC_LOCK_ACQUIRE_FAILED | Custom lock acquire failed        | Review lock implementation; check for lock inversions |
+| -35   | ERR_GENERIC_LOCK_RELEASE_FAILED | Custom lock release failed        | Verify lock ownership; check lock state consistency |
+
 
 ### Hash/Indexing Errors
-| Code  | Name                    | Meaning/Description         |
-|-------|-------------------------|-----------------------------|
-| -40   | ERR_HASH_COMPUTE_FAILED | Hash computation failure    |
-| -41   | ERR_INVALID_BUCKET_INDEX| Invalid bucket index        |
-| -42   | ERR_INVALID_SUB_BUCKET_INDEX | Invalid sub-bucket index  |
+| Code  | Name                    | Meaning/Description         | Recovery |
+|-------|------------------------|---------------------------|-----------|
+| -40   | ERR_HASH_COMPUTE_FAILED | Hash computation failure    | Verify hash function; check for integer overflow; enable assertions |
+| -41   | ERR_INVALID_BUCKET_INDEX| Invalid bucket index        | Verify table size and computed index; check for boundary errors |
+| -42   | ERR_INVALID_SUB_BUCKET_INDEX | Invalid sub-bucket index | Verify sub-table size; check index calculation logic |
+
 
 ### Hash Table/Bucket Operation Errors
-| Code  | Name                          | Meaning/Description           |
-|-------|-------------------------------|-------------------------------|
-| -50   | ERR_HASH_TABLE_NOT_INITIALIZED| Hash table not initialized    |
-| -51   | ERR_HASH_BUCKET_NOT_FOUND     | Hash bucket not found         |
-| -52   | ERR_UNSUPPORTED_HASH_BUCKET_OP| Unsupported hash bucket op    |
-| -53   | ERR_HASH_BUCKET_FULL          | Hash bucket full              |
-| -54   | ERR_HASH_BUCKET_NOT_INITIALIZED| Hash bucket not initialized  |
+| Code  | Name                          | Meaning/Description           | Recovery |
+|-------|-------------------------------|-------------------------------|----------|
+| -50   | ERR_HASH_TABLE_NOT_INITIALIZED| Hash table not initialized    | Call initialization function before operations |
+| -51   | ERR_HASH_BUCKET_NOT_FOUND     | Hash bucket not found         | Verify hash computation; check table size |
+| -52   | ERR_UNSUPPORTED_HASH_BUCKET_OP| Unsupported hash bucket op    | Use correct operation for bucket type |
+| -53   | ERR_HASH_BUCKET_FULL          | Hash bucket full              | Trigger resize; increase bucket capacity |
+| -54   | ERR_HASH_BUCKET_NOT_INITIALIZED| Hash bucket not initialized  | Initialize bucket before use |
+
 
 ### Sub Hash Table Operation Errors
-| Code  | Name                               | Meaning/Description           |
-|-------|------------------------------------|-------------------------------|
-| -60   | ERR_SUB_HASH_TABLE_NOT_INITIALIZED | Sub-hash table not initialized|
-| -61   | ERR_SUB_HASH_BUCKET_NOT_FOUND      | Sub-hash bucket not found     |
-| -62   | ERR_UNSUPPORTED_SUB_HASH_TABLE_OP  | Unsupported sub-hash table op |
-| -63   | ERR_SUB_HASH_TABLE_RESIZE_FAILED   | Sub-hash table resize failed  |
-| -64   | ERR_SUB_HASH_BUCKET_NOT_INITIALIZED| Sub-hash bucket not initialized|
+| Code  | Name                               | Meaning/Description           | Recovery |
+|-------|---------------------------------------|-------------------------------|-----------|
+| -60   | ERR_SUB_HASH_TABLE_NOT_INITIALIZED | Sub-hash table not initialized | Initialize sub-table; verify parent table setup |
+| -61   | ERR_SUB_HASH_BUCKET_NOT_FOUND      | Sub-hash bucket not found     | Verify secondary hash computation; check sub-table state |
+| -62   | ERR_UNSUPPORTED_SUB_HASH_TABLE_OP  | Unsupported sub-hash table op | Review operation type; use correct API |
+| -63   | ERR_SUB_HASH_TABLE_RESIZE_FAILED   | Sub-hash table resize failed  | Check memory availability; verify resize logic |
+| -64   | ERR_SUB_HASH_BUCKET_NOT_INITIALIZED| Sub-hash bucket not initialized | Initialize bucket; verify parent table state |
+
 
 ### Linked List Operation Errors
-| Code  | Name                             | Meaning/Description           |
-|-------|----------------------------------|-------------------------------|
-| -70   | ERR_LINKED_LIST_NODE_NOT_FOUND   | Linked list node not found    |
-| -71   | ERR_LINKED_LIST_NODE_CREATION_FAILED | Linked list node creation failed |
-| -72   | ERR_UNSUPPORTED_LINKED_LIST_OP   | Unsupported linked list op    |
+| Code  | Name                             | Meaning/Description           | Recovery |
+|-------|----------------------------------|-------------------------------|----------|
+| -70   | ERR_LINKED_LIST_NODE_NOT_FOUND   | Linked list node not found    | Verify key exists; check list traversal logic |
+| -71   | ERR_LINKED_LIST_NODE_CREATION_FAILED | Linked list node creation failed | Check memory availability; verify node factory |
+| -72   | ERR_UNSUPPORTED_LINKED_LIST_OP   | Unsupported linked list op    | Use correct list operation; check API |
+
 
 ### Data Node Operation Errors
-| Code  | Name                        | Meaning/Description           |
-|-------|-----------------------------|-------------------------------|
-| -80   | ERR_DATA_NODE_NOT_FOUND     | Data node not found           |
-| -81   | ERR_DATA_NODE_UPDATE_FAILED | Data node update failed       |
-| -82   | ERR_UNSUPPORTED_DATA_NODE_OP| Unsupported data node op      |
-| -83   | ERR_DATA_NODE_CREATION_FAILED | Data node creation failed    |
+| Code  | Name                        | Meaning/Description           | Recovery |
+|-------|-----------------------------|-------------------------------|----------|
+| -80   | ERR_DATA_NODE_NOT_FOUND     | Data node not found           | Verify key exists in table; check traversal |
+| -81   | ERR_DATA_NODE_UPDATE_FAILED | Data node update failed       | Check lock state; verify value size; retry |
+| -82   | ERR_UNSUPPORTED_DATA_NODE_OP| Unsupported data node op      | Use correct node operation; verify API |
+| -83   | ERR_DATA_NODE_CREATION_FAILED | Data node creation failed    | Check memory; verify value size valid |
+
 
 ### Pool/Manager Specific
-| Code  | Name                      | Meaning/Description           |
-|-------|---------------------------|-------------------------------|
-| -90   | ERR_POOL_NOT_INITIALIZED  | Memory pool not initialized   |
-| -91   | ERR_POOL_EXHAUSTED        | Memory pool exhausted         |
-| -92   | ERR_POOL_CORRUPTION_DETECTED | Memory pool corruption detected |
+| Code  | Name                      | Meaning/Description           | Recovery |
+|-------|---------------------------|-------------------------------|----------|
+| -90   | ERR_POOL_NOT_INITIALIZED  | Memory pool not initialized   | Initialize memory pool before allocation |
+| -91   | ERR_POOL_EXHAUSTED        | Memory pool exhausted         | Increase pool size; free unused blocks; retry |
+| -92   | ERR_POOL_CORRUPTION_DETECTED | Memory pool corruption detected | Verify pool integrity; enable memory sanitizer; inspect allocations |
+
 
 ### Platform/Threading
-| Code   | Name                        | Meaning/Description         |
-|--------|-----------------------------|-----------------------------|
-| -100   | ERR_UNSUPPORTED_PLATFORM    | Platform not supported      |
-| -101   | ERR_THREAD_CREATION_FAILED  | Thread creation failed      |
-| -102   | ERR_MAX_RETRY_EXCEEDED      | Max retry attempts exceeded |
+| Code   | Name                        | Meaning/Description         | Recovery |
+|--------|-----------------------------|-----------------------------|----------|
+| -100   | ERR_UNSUPPORTED_PLATFORM    | Platform not supported      | Check platform compatibility; enable platform-specific code |
+| -101   | ERR_THREAD_CREATION_FAILED  | Thread creation failed      | Verify thread limit; check system resources; retry |
+| -102   | ERR_MAX_RETRY_EXCEEDED      | Max retry attempts exceeded | Increase retry limit or backoff threshold; investigate root cause |
+
+
+---
+
+## Developer Guide
+
+### Success Code Patterns
+
+**Insertion Codes (10, 11, 20):**
+Inform the caller about insertion outcome:
+- `10` — Standard new node insertion (most common)
+- `11` — Entry queued for pending resize operation (internal use)
+- `20` — Insertion triggered a sub-table resize (useful for metrics/logging)
+
+**Bloom Filter Codes (30, 31, 32):**
+Guide lookup optimization:
+- `30` — Bloom filter disabled; proceed with full lookup
+- `31` — Bloom filter says *may exist*; perform full lookup
+- `32` — Bloom filter says *definitely not exist*; skip lookup and return KEY_NOT_FOUND
+
+### Error Handling Best Practices
+
+1. **Always check return codes:**
+   ```c
+   int result = keystore_insert(keystore, key, value);
+   if (result < 0) {
+       // Error occurred; handle based on specific code
+   } else if (result > 0) {
+       // Success with additional context (e.g., resize triggered)
+   }
+   ```
+
+2. **Use specific codes for logging:**
+   - Log the exact error code, not generic "operation failed"
+   - Pair with file:line context for debugging
+
+3. **Recovery strategies:**
+   - Memory errors (`-20`, `-21`, `-22`): Retry with backoff
+   - Lock errors (`-30` to `-35`): Check for deadlock; enable tracing
+   - Initialization errors (`-50`, `-60`, `-90`): Call init before operations
+   - Exhaustion errors (`-91`): Expand capacity or evict stale data
+
+4. **Thread-safe error handling:**
+   - Each error code is independent of caller context
+   - No implicit side effects from error returns
+   - Use error codes to coordinate retry logic across threads
+
+### Known Issues in Source Headers
+
+> **Note:** Source files contain typos that will be addressed in a future cleanup:
+> - `SUCESS` should be `SUCCESS` (missing 'C')
+> - `RESZING` should be `RESIZING` (missing 'I')
+>
+> For now, use the constants as defined in the header files and reference this document for canonical descriptions.
 
 ---
 
@@ -107,10 +177,21 @@ This document lists all custom error and return codes used in the distributed-ke
 #include "error_code_definitions.h"
 #include "sucess_code_definitions.h"
 
-// Extended Success Codes
+// Extended Success Codes — Insertion
 // result == SUCESS_ADDED_NEW_NODE (10)          — new key-value pair inserted
 // result == SUCCESS_ADDED_TO_PENDING_LIST (11)  — added to resize pending buffer
 // result == SUCESS_ADDED_NEW_NODE_RESZING_TRIGGERED (20) — inserted + resize triggered
+
+// Extended Success Codes — Bloom Filter
+int bloom_result = bloom_filter_check(filter, key);
+if (bloom_result == BLOOM_FILTER_DISABLED) {
+    // Proceed with full lookup
+} else if (bloom_result == BLOOM_FILTER_CHECK_KEY_MAY_EXIST) {
+    // Key may exist; perform full lookup
+} else if (bloom_result == BLOOM_FILTER_CHECK_KEY_NOT_EXIST) {
+    // Key definitely not present; short-circuit
+    return KEY_NOT_FOUND;
+}
 
 // Argument/Validation
 if (key == NULL) return ERR_INVALID_ARGUMENT; // -11

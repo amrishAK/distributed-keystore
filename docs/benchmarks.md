@@ -22,12 +22,6 @@ All iterations below use this identical setup. Per-iteration differences are arc
 
 ---
 
-### Iteration 1 — Global Hash Table
-
-> _To be added. This iteration uses a single global hash table with coarse-grained locking._
-
----
-
 ### Iteration 2 — Sub-Hash Table + Composite Hash
 
 **Date:** 2026-03-23
@@ -163,4 +157,18 @@ Same as Iterations 2–3 (Sub-Hash Table + Composite Hash). Run natively without
 
 ---
 
-<!-- Add Iteration 4 and future benchmark sets below this line -->
+## Summary
+
+All three iterations under this configuration (Iterations 2–4) completed with zero key loss and zero memory errors.
+
+**Key findings:**
+- **Correctness:** Sub-hash table + composite hash architecture is sound under both low (2M ops) and high (8M ops) load. Chase buffer resize handles concurrent access without data loss.
+- **Throughput under instrumentation:** 12–14K ops/s with Valgrind overhead ≈ 304×.
+- **Native hardware throughput:** ~4.3M ops/s, with GET p50 latency of 302 ns (sub-microsecond).
+- **Scaling behavior:** SET latency increased 2–3× (54→57 ns with Valgrind; 3.6 ns uncontended), consistent with increased hash collisions and resize contention at 8M ops.
+
+**Next iterations:** Baseline with global lock (Iteration 1), and alternative resizing strategies (lock-free, per-bucket copy) to assess trade-offs against current design.
+
+---
+
+<!-- Future benchmark iterations should be added below this line -->

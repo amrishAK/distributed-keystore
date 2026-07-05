@@ -1,9 +1,9 @@
 /**
  * @file memory_manager.h
- * @brief Memory management utilities for distributed keystore.
+ * @brief Memory management utilities for the KeyStore.
  *
  * This header provides types and functions for managing memory pools and
- * general memory allocation in the distributed keystore project.
+ * general memory allocation in the KeyStore project.
  *
  * Types:
  * - memory_pool_type_t: Enum for memory pool selection (NONE, LIST_POOL, TREE_POOL).
