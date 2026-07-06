@@ -115,6 +115,41 @@ int delete_key(const char *key)
     return delete_key_from_hash_table(g_hash_table_pool, key_hash, key);
 }
 
+unsigned int get_key_store_max_chain_depth(void)
+{
+    if (g_hash_table_pool == NULL || !g_hash_table_pool->is_initialized || g_hash_table_pool->hash_buckets_ptr == NULL)
+    {
+        return 0U;
+    }
+
+    unsigned int max_chain_depth = 0U;
+    for (unsigned int bucket_index = 0; bucket_index < g_hash_table_pool->total_blocks; ++bucket_index)
+    {
+        hash_bucket *bucket = &g_hash_table_pool->hash_buckets_ptr[bucket_index];
+        if (!bucket->is_initialized || bucket->sub_hash_table_ptr == NULL)
+        {
+            continue;
+        }
+
+        sub_hash_table_memory_pool *sub_hash_table = bucket->sub_hash_table_ptr;
+        if (!sub_hash_table->is_initialized || sub_hash_table->sub_hash_buckets_ptr == NULL)
+        {
+            continue;
+        }
+
+        for (unsigned int sub_bucket_index = 0; sub_bucket_index < sub_hash_table->total_blocks; ++sub_bucket_index)
+        {
+            unsigned int depth = sub_hash_table->sub_hash_buckets_ptr[sub_bucket_index].total_node_count;
+            if (depth > max_chain_depth)
+            {
+                max_chain_depth = depth;
+            }
+        }
+    }
+
+    return max_chain_depth;
+}
+
 #pragma endregion
 
 #pragma region Private Function Definitions

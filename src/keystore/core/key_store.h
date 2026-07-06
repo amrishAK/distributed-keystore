@@ -68,5 +68,16 @@ int get_key(const char *key, key_value_pair* kv_pair_out);
  */
 int delete_key(const char *key);
 
+/**
+ * @fn get_key_store_max_chain_depth
+ * @brief Returns the maximum observed sub-bucket chain depth in the active key store.
+ *
+ * The returned value is computed from sub-hash-bucket node counts across initialized
+ * hash buckets. A return of 0 means the store is empty or not initialized.
+ *
+ * @return Maximum chain depth across initialized sub-hash-buckets.
+ */
+unsigned int get_key_store_max_chain_depth(void);
+
 
 #endif // KEY_STORE_H

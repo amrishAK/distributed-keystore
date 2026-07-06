@@ -157,6 +157,80 @@ Same as Iterations 2–3 (Sub-Hash Table + Composite Hash). Run natively without
 
 ---
 
+## Running Dedicated High-Scale Benchmark
+
+To run only the high-operation multi-thread benchmark (2000 threads, 8M total timed operations) and keep results separate from the regular suite:
+
+```bash
+cd benchmark
+make benchmark-multi-high
+```
+
+Outputs:
+
+- `benchmark/results/multi_thread_high_scale_results.jsonl`
+- `benchmark/results/multi_thread_high_scale_report.html`
+
+Scenario ID:
+
+- `MT-SCALE-H001`
+
+---
+
+## Running AB Workload Combinations
+
+To run the expanded AB workload matrix for read-heavy, write-heavy, balanced 50/50, and mixed profiles:
+
+```bash
+cd benchmark
+make benchmark-multi-ab
+```
+
+Outputs:
+
+- `benchmark/results/multi_thread_ab_results.jsonl`
+- `benchmark/results/multi_thread_ab_report.html`
+
+Scenario IDs:
+
+- `MT-AB-001` (8-thread read-heavy 10/90)
+- `MT-AB-002` (8-thread write-heavy 90/10)
+- `MT-AB-003` (8-thread balanced 50/50)
+- `MT-AB-004` (8-thread mixed 70/30)
+- `MT-AB-005` (16-thread read-heavy 10/90)
+- `MT-AB-006` (16-thread write-heavy 90/10)
+- `MT-AB-007` (16-thread balanced 50/50)
+- `MT-AB-008` (16-thread mixed 70/30)
+
+---
+
+## Ab_Test
+
+Run the dedicated Ab_Test scale matrix for total operations `{0.5M, 1M, 5M, 8M}` across thread counts `{8, 16, 32, 64, 128}`:
+
+```bash
+cd benchmark
+make benchmark-multi-ab-test
+```
+
+Outputs:
+
+- `benchmark/results/multi_thread_ab_test_results.jsonl`
+- `benchmark/results/multi_thread_ab_test_report.html`
+
+Scenario ID pattern:
+
+- `MT-ABT-001` .. `MT-ABT-020`
+
+Matrix coverage:
+
+- 0.5M ops: 8/16/32/64/128 threads (`MT-ABT-001` .. `MT-ABT-005`)
+- 1M ops: 8/16/32/64/128 threads (`MT-ABT-006` .. `MT-ABT-010`)
+- 5M ops: 8/16/32/64/128 threads (`MT-ABT-011` .. `MT-ABT-015`)
+- 8M ops: 8/16/32/64/128 threads (`MT-ABT-016` .. `MT-ABT-020`)
+
+---
+
 ## Summary
 
 All three iterations under this configuration (Iterations 2–4) completed with zero key loss and zero memory errors.

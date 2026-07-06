@@ -109,6 +109,80 @@ make clean
 
 Run `make help` to see all available targets.
 
+## Benchmarking
+
+KeyStore includes a production benchmark suite (V2) with **63 executable scenarios**:
+
+- **20 single-threaded scenarios (ST2)** for baseline throughput, latency, distribution behavior, resize spikes, and memory-pool ROI.
+- **43 multi-threaded scenarios (MT2)** for scaling, contention, workload mix, resize correctness, and oversubscription stress.
+
+### Benchmark At a Glance
+
+- **Primary targets:** >=2M ops/sec (single-thread), >=28M ops/sec at 32 threads (multi-thread).
+- **Correctness checks:** `failure_count == 0`, `missing_count == 0`, and post-run verification.
+- **Outputs:** single-thread and multi-thread JSONL/HTML reports under `benchmark/.result/`.
+- **Run history:** curated run summaries in `benchmark/runs/`.
+
+### Build and Run
+
+```bash
+cd benchmark
+
+# Single-thread benchmark + HTML report
+make benchmark
+
+# Multi-thread benchmark + HTML report
+make benchmark-multi
+
+# Run both suites
+make benchmark-all
+```
+
+### Useful Benchmark Targets
+
+```bash
+# Build binaries only
+make bin
+make multi-build
+
+# Run core scaling scenarios only (MT2-CORE)
+make multi-run-core
+
+# Run distribution stress scenarios only (MT2-DIST)
+make multi-run-dist
+
+# Run resize-heavy scenarios only (MT2-RSZ)
+make multi-run-resize
+
+# Run oversubscription scenario (up to very high thread counts)
+make multi-run-high
+```
+
+### Result Artifacts
+
+- **Raw results:** `benchmark/.result/*.jsonl`
+- **Generated HTML reports:** `benchmark/.result/*.html`
+- **Indexed run snapshots:** `benchmark/runs/INDEX.md`
+- **Latest run snapshot example:** `benchmark/runs/2026-07-06-run-2/METRICS_SNAPSHOT.md`
+
+### Benchmark Documentation
+
+- [benchmark/docs/BENCHMARK.md](./benchmark/docs/BENCHMARK.md) — Complete benchmark spec, success criteria, scenario matrix (ST2 + MT2)
+- [benchmark/runs/INDEX.md](./benchmark/runs/INDEX.md) — Historical run index and status tracking
+- [docs/progress.md](./docs/progress.md) — Project-level benchmark progress and release tracking
+
+### Performance Baselines (v1.0)
+
+| Scenario | Throughput | Config | Status |
+|----------|-----------|--------|--------|
+| **Single-threaded 50/50 SET:GET** | 2–2.5M ops/sec | bucket=256, prealloc=0.5 | ✅ Baseline |
+| **Multi-threaded 32 threads 50/50** | ≥28M ops/sec | bucket=1024, prealloc=0.5 | ✅ Target |
+| **Native stress (2K threads, 8M ops)** | **4.3M ops/sec** | bucket=1024, max_chain=15 | ✅ Achieved |
+| **Valgrind clean** | 14K ops/sec (304× overhead) | All tests | ✅ Verified |
+| **Memory integrity** | 0 leaks, 0 races | 24M+ allocs under concurrency | ✅ Verified |
+
+**Next Steps:** Execute full benchmark suite → analyze scaling curves → validate v1.0 performance targets.
+
 ## Example Output
 
 ```
