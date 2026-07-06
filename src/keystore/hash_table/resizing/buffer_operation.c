@@ -301,16 +301,27 @@ int commit_resizing_buffer_operations_to_sub_hash_table(hash_bucket* hash_bucket
     
 
     sub_hash_table_memory_pool* target_sub_hash_table_ptr = (is_target_snapshot) ? hash_bucket_ptr->snapshot_sub_hash_table_ptr : hash_bucket_ptr->resizing_buffer_ptr->new_sub_hash_table_ptr;
+    if (target_sub_hash_table_ptr == NULL) return ERR_SUB_HASH_TABLE_NOT_INITIALIZED;
 
     int result = 0;
 
     
     
     result = _process_new_operation_buffer(hash_bucket_ptr->resizing_buffer_ptr->new_operation_buffer_ptr, target_sub_hash_table_ptr, is_target_snapshot);
-    result = _process_updated_operation_buffer(hash_bucket_ptr->resizing_buffer_ptr->updated_operation_buffer_head, target_sub_hash_table_ptr);
-    result = _process_deleted_operation_buffer(hash_bucket_ptr->resizing_buffer_ptr->delete_operation_buffer_ptr, target_sub_hash_table_ptr);
+    if(result != SUCCESS) return result;
 
-    return result;
+    if(hash_bucket_ptr->resizing_buffer_ptr->updated_operation_buffer_head != NULL) {
+        result = _process_updated_operation_buffer(hash_bucket_ptr->resizing_buffer_ptr->updated_operation_buffer_head, target_sub_hash_table_ptr);
+        if(result != SUCCESS) return result;
+    }
+
+    if(hash_bucket_ptr->resizing_buffer_ptr->delete_operation_buffer_ptr != NULL &&
+       hash_bucket_ptr->resizing_buffer_ptr->delete_operation_buffer_ptr->count > 0) {
+        result = _process_deleted_operation_buffer(hash_bucket_ptr->resizing_buffer_ptr->delete_operation_buffer_ptr, target_sub_hash_table_ptr);
+        if(result != SUCCESS) return result;
+    }
+
+    return SUCCESS;
 }
 
 #pragma endregion

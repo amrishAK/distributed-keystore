@@ -28,9 +28,24 @@ int initialize_hash_bucket_resizing(hash_bucket* hash_bucket_ptr)
     hash_bucket_ptr->snapshot_sub_hash_table_ptr = NULL;
     hash_bucket_ptr->is_resizing = true;
     hash_bucket_ptr->snapshot_sub_hash_table_ptr = hash_bucket_ptr->sub_hash_table_ptr;
-    initialize_resizing_buffer(hash_bucket_ptr);
+    int result = initialize_resizing_buffer(hash_bucket_ptr);
+    if (result != SUCCESS) {
+        hash_bucket_ptr->is_resizing = false;
+        hash_bucket_ptr->snapshot_sub_hash_table_ptr = NULL;
+        return result;
+    }
 
-    int result =  initialize_background_function(hash_bucket_resize_worker, (void*)hash_bucket_ptr, true, NULL);
+    result = initialize_background_function(hash_bucket_resize_worker, (void*)hash_bucket_ptr, true, NULL);
+    if (result != SUCCESS) {
+        if (hash_bucket_ptr->resizing_buffer_ptr != NULL) {
+            delete_resizing_buffer(hash_bucket_ptr->resizing_buffer_ptr);
+            free_memory(hash_bucket_ptr->resizing_buffer_ptr, false);
+            hash_bucket_ptr->resizing_buffer_ptr = NULL;
+        }
+        hash_bucket_ptr->is_resizing = false;
+        hash_bucket_ptr->snapshot_sub_hash_table_ptr = NULL;
+    }
+
     return result;
 }
 

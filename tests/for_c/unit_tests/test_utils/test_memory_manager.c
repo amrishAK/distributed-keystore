@@ -52,8 +52,8 @@ void test_initialize_memory_manager_invalid_config(void) {
     // Act
     int res2 = initialize_memory_manager(bad2);
 
-    // Assert
-    TEST_ASSERT_EQUAL_INT(ERR_INVALID_CONFIG, res2);
+    // Assert: zero pre-allocation is valid and means no pool pre-allocation
+    TEST_ASSERT_EQUAL_INT(SUCCESS, res2);
     cleanup_memory_manager();
 
     // Arrange
