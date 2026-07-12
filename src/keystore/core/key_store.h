@@ -1,24 +1,22 @@
 #ifndef KEY_STORE_H
 #define KEY_STORE_H
 
-#include "type_definition.h"
+#include "type_definitions/hash_bucket_type_definition.h"
+#include "type_definitions/error_code_definitions.h"
+#include "type_definitions/sucess_code_definitions.h"
 
 /**
  * @fn initialise_key_store
- * @brief Initializes the key store with the specified bucket size.
+ * @brief Initializes the key store with the specified configuration.
  *
- * This function sets up the key store data structure, allocating resources
- * as needed to support the given number of buckets.
+ * This function sets up the key store with the given hash table configuration
+ * and pre-allocates memory based on the provided factor.
  *
- * @param bucket_size The number of buckets to allocate in the key store.
- * @param pre_memory_allocation_factor A factor (0 to 1) indicating the proportion of memory to pre-allocate for efficiency.
- * @param is_concurrency_enabled Flag to enable or disable concurrency control.
+ * @param config The configuration settings for the hash table.
+ * @param pre_memory_allocation_factor A factor (0.0 to 1.0) indicating the proportion of memory to pre-allocate.
  * @return 0 on success, or a negative error code on failure.
- * 
- * @note The bucket_size must be a power of two. If it is not, the function returns -1 to indicate an error.
- * 
  */
-int initialise_key_store(unsigned int bucket_size,  double pre_memory_allocation_factor, bool is_concurrency_enabled);
+int initialise_key_store(hash_table_configuration config, double pre_memory_allocation_factor);
 
 /**
  * @fn cleanup_key_store
@@ -38,13 +36,12 @@ int cleanup_key_store(void);
  * This function adds a new key-value pair to the key store or updates the value
  * if the key already exists. The value is provided as a key_store_value structure.
  *
- * @param key The key to set or update (null-terminated string).
- * @param value Pointer to a key_store_value structure containing the data and its size.
+ * @param key_value_pair Pointer to a key_value_pair structure containing the key and its associated value.
  * @return 0 on success, or a negative error code on failure.
  * 
- * @note The caller is responsible for managing the memory of the data pointer in value.
+ * @note The caller is responsible for managing the memory of the key_value_pair pointer.
  */
-int set_key(const char *key, key_store_value* value);
+int set_key(key_value_pair* key_value_pair);
 
 /**
  * @fn get_key
@@ -54,11 +51,11 @@ int set_key(const char *key, key_store_value* value);
  * If the key is found, the value is copied into the provided output structure.
  *
  * @param key The key to look up (null-terminated string).
- * @param value_out Pointer to a key_store_value structure to receive the value. It is set to NULL if the key is not found. 
+ * @param kv_pair_out Pointer to a key_value_pair structure to receive the key-value pair. It is set to NULL if the key is not found. 
  * @return 0 on success, or a negative error code if the key is not found or an error occurs.
- * @note The caller is responsible for managing the memory of the data pointer in value_out.
+ * @note The caller is responsible for managing the memory of the key_value_pair pointer.
  */
-int get_key(const char *key, key_store_value* value_out);
+int get_key(const char *key, key_value_pair* kv_pair_out);
 
 /**
  * @fn delete_key
@@ -72,14 +69,15 @@ int get_key(const char *key, key_store_value* value_out);
 int delete_key(const char *key);
 
 /**
- * @fn get_keystore_stats
- * @brief Retrieves statistics about the key store.
+ * @fn get_key_store_max_chain_depth
+ * @brief Returns the maximum observed sub-bucket chain depth in the active key store.
  *
- * This function gathers various statistics about the key store, including
- * key distribution, memory usage, and operation counts.
+ * The returned value is computed from sub-hash-bucket node counts across initialized
+ * hash buckets. A return of 0 means the store is empty or not initialized.
  *
- * @return A keystore_stats structure containing the collected statistics.
+ * @return Maximum chain depth across initialized sub-hash-buckets.
  */
-keystore_stats get_keystore_stats(void);
+unsigned int get_key_store_max_chain_depth(void);
+
 
 #endif // KEY_STORE_H

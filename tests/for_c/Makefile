@@ -2,10 +2,9 @@
 CONCURRENCY_TEST_SRC = integration_test/concurrency_test.c
 CONCURRENCY_TEST_BIN = $(BUILD_DIR)/concurrency_test
 
-
 # Compiler and flags
 CC = gcc
-CFLAGS = -Wall -Wextra -g
+CFLAGS = -Wall -Wextra -g -fno-pie -no-pie -Wa,--noexecstack
 COVERAGE_FLAGS = --coverage -fprofile-arcs -ftest-coverage
 
 # Common build macro
@@ -28,12 +27,12 @@ TEST_SRC  = $(TEST_DIR)/test_runner.c
 # Auto-detect immediate subdirectories inside keystore
 KEYSTORE_SUBDIRS := $(shell ls -d $(KEYSTORE_DIR)/*/ 2>/dev/null | xargs -n1 basename)
 
-# List of .c files to exclude from build (space-separated, relative to KEYSTORE_DIR)
-KEYSTORE_EXCLUDE = bucket/hash_buckets_operation.c bucket/hash_buckets_stats.c
+# List of .c files to exclude from build
+KEYSTORE_EXCLUDE = bucket/%.c
 
-# Collect all .c files from detected subdirectories, then filter out excluded files
+# Collect all .c files from detected subdirectories, filter exclusions
 KEYSTORE_SRC := $(filter-out $(addprefix $(KEYSTORE_DIR)/,$(KEYSTORE_EXCLUDE)), \
-                 $(foreach d,$(KEYSTORE_SUBDIRS),$(wildcard $(KEYSTORE_DIR)/$(d)/*.c)))
+                 $(foreach d,$(KEYSTORE_SUBDIRS),$(wildcard $(KEYSTORE_DIR)/$(d)/**/*.c) $(wildcard $(KEYSTORE_DIR)/$(d)/*.c)))
 
 # Map source files to object files in build directory
 KEYSTORE_OBJS := $(patsubst $(KEYSTORE_DIR)/%.c,$(BUILD_DIR)/%.o,$(KEYSTORE_SRC))
@@ -48,9 +47,8 @@ TEST_BIN = $(BUILD_DIR)/key_store_test
 # Default target
 all: test
 
-# Create build directory and its subdirectories
+# Create build directory and subdirectories
 $(BUILD_DIR):
-	touch $(BUILD_DIR) # ensure the directory exists
 	rm -rf $(BUILD_DIR)
 	mkdir -p $(BUILD_DIR)
 	$(foreach d,$(KEYSTORE_SUBDIRS), mkdir -p $(BUILD_DIR)/$(d);)
@@ -59,26 +57,22 @@ $(BUILD_DIR):
 coverage-dir:
 	mkdir -p $(COVERAGE_DIR)
 
-
 # Compile Unity framework
 $(UNITY_OBJ): $(UNITY_SRC) | $(BUILD_DIR)
 	$(BUILD_CMD) -c $< -o $@
 
-
-# Compile test files
+# Compile test runner
 $(TEST_OBJ): $(TEST_SRC) | $(BUILD_DIR)
 	$(BUILD_CMD) -c $< -o $@
 
-
 # Compile keystore sources (unit test build)
 $(BUILD_DIR)/%.o: $(KEYSTORE_DIR)/%.c | $(BUILD_DIR)
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(INCLUDES) $(UNIT_FLAGS) -c $< -o $@
 
-
-# Link unit test executable
-$(TEST_BIN): $(UNITY_OBJ) $(TEST_OBJ) $(KEYSTORE_OBJS)
-	$(CC) $(CFLAGS) $(INCLUDES) $(UNIT_FLAGS) $^ -o $@
-
+# Link unit test executable **FIXED: -lpthread -lm**
+$(TEST_BIN): $(UNITY_OBJ) $(TEST_OBJ) $(KEYSTORE_OBJS) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) $(UNIT_FLAGS) $^ -lpthread -lm -o $@
 
 # Build unit test (with coverage)
 unit_build:
@@ -88,6 +82,15 @@ unit_build:
 test: unit_build
 	@echo "Running unit tests..."
 	./$(TEST_BIN)
+
+# Build test binary for Valgrind (no coverage/sanitizer)
+valgrind_build:
+	$(MAKE) CFLAGS="-Wall -Wextra -g -fno-pie -no-pie -Wa,--noexecstack" $(TEST_BIN)
+
+# Run unit tests under Valgrind
+valgrind-test: valgrind_build
+	@echo "Running unit tests under Valgrind..."
+	valgrind --leak-check=full --track-origins=yes ./$(TEST_BIN)
 
 # Full coverage report (requires lcov)
 coverage: test | coverage-dir
@@ -112,19 +115,23 @@ coverage-simple: test
 	  gcov -o $(BUILD_DIR)/$(d) $(wildcard $(KEYSTORE_DIR)/$(d)/*.c);)
 	@echo "Simple coverage files in $(BUILD_DIR)/*/*.gcov"
 
-
 # Build concurrency test (no coverage)
 concurrency_build:
 	$(MAKE) EXTRA_FLAGS="" $(CONCURRENCY_TEST_BIN)
 
+# Link concurrency test **FIXED: -lpthread -lm**
 $(CONCURRENCY_TEST_BIN): $(CONCURRENCY_TEST_SRC) $(KEYSTORE_OBJS) | $(BUILD_DIR)
-	$(BUILD_CMD) -o $(CONCURRENCY_TEST_BIN) $(CONCURRENCY_TEST_SRC) $(KEYSTORE_OBJS) -lpthread 
+	$(BUILD_CMD) $(CONCURRENCY_TEST_SRC) $(KEYSTORE_OBJS) -lpthread -lm -o $@
 
 run-concurrency-test: concurrency_build
 	@echo "Running concurrency test..."
-	$(CONCURRENCY_TEST_BIN)
+	./$(CONCURRENCY_TEST_BIN)
 
-# Debug detected dirs and files
+run-ct-valgrind: concurrency_build
+	@echo "Running concurrency test under Valgrind..."
+	valgrind --leak-check=full --track-origins=yes ./$(CONCURRENCY_TEST_BIN)
+
+# Debug detected dirs/files
 debug:
 	@echo "Subdirectories: $(KEYSTORE_SUBDIRS)"
 	@echo "Source files:    $(KEYSTORE_SRC)"
@@ -134,21 +141,18 @@ debug:
 clean:
 	rm -rf $(BUILD_DIR) $(COVERAGE_DIR) *.gcov *.gcda *.gcno coverage.info
 
-
-
-
 # Phony targets
-.PHONY: all test clean coverage coverage-simple coverage-dir debug help
+.PHONY: all test clean coverage coverage-simple coverage-dir debug run-concurrency-test run-ct-valgrind concurrency_build help
 
 # Help message
 help:
 	@echo "Available targets:"
-	@echo "  all             - Build and run tests"
-	@echo "  test            - Build and run tests"
-	@echo "  coverage        - Full coverage report (LCOV=1 for HTML)"
-	@echo "  coverage-simple - Quick .gcov coverage report"
-	@echo "  debug           - Show detected dirs and files"
-	@echo "  clean           - Remove build/coverage artifacts"
-	@echo "  help            - Show this help message"
-	@echo "  concurrency_build        - Build concurrency test binary"
-	@echo "  run-concurrency-test    - Build and run concurrency test"
+	@echo "  all                 - Build and run tests"
+	@echo "  test                - Build and run unit tests"
+	@echo "  coverage            - Full coverage (LCOV=1 for HTML)"
+	@echo "  coverage-simple     - Quick .gcov files"
+	@echo "  run-concurrency-test - Build/run concurrency test"
+	@echo "  run-ct-valgrind     - Run concurrency test under Valgrind"
+	@echo "  debug               - Show detected files"
+	@echo "  clean               - Clean artifacts"
+	@echo "  help                - This message"

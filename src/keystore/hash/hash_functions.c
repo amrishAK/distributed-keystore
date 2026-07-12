@@ -1,30 +1,34 @@
 #include <string.h>
 #include "hash_functions.h"
 
-// constants
-static const uint32_t hash_size = 32;
-static const uint32_t block_size = 4;
-static const uint32_t block_mix_constant_1 = 0xcc9e2d51;
-static const uint32_t block_mix_constant_2 = 0x1b873593;
-static const uint32_t block_rotation_bits = 15;
+// 64-bit constants for MurmurHash3 64-bit variant
+static const uint32_t hash_size = 64;
+static const uint32_t block_size = 8; // 8 bytes = 64 bits
+static const uint64_t block_mix_constant_1 = 0x87c37b91114253d5ULL;
+static const uint64_t block_mix_constant_2 = 0x4cf5ad432745937fULL;
+static const uint32_t block_rotation_bits = 31;
 
-static const uint32_t hash_rotation_bits = 13;
-static const uint32_t hash_multiplier = 5;
-static const uint32_t hash_addition_constant = 0xe6546b64;
+static const uint32_t hash_rotation_bits = 27;
+static const uint64_t hash_multiplier = 5;
+static const uint64_t hash_addition_constant = 0x52dce729ULL;
 
-static const uint32_t tailing_bytes_shift_1 = 16;
-static const uint32_t tailing_bytes_shift_2 = 8;
+static const uint32_t tailing_bytes_shift_1 = 8;
+static const uint32_t tailing_bytes_shift_2 = 16;
+static const uint32_t tailing_bytes_shift_3 = 24;
+static const uint32_t tailing_bytes_shift_4 = 32;
+static const uint32_t tailing_bytes_shift_5 = 40;
+static const uint32_t tailing_bytes_shift_6 = 48;
 
-static const uint32_t finalization_shift_1 = 16;
-static const uint32_t finalization_shift_2 = 13;
-static const uint32_t finalization_multiplier_1 = 0x85ebca6b;
-static const uint32_t finalization_multiplier_2 = 0xc2b2ae35;
+static const uint32_t finalization_shift_1 = 33;
+static const uint32_t finalization_shift_2 = 29;
+static const uint64_t finalization_multiplier_1 = 0xff51afd7ed558ccdULL;
+static const uint64_t finalization_multiplier_2 = 0xc4ceb9fe1a85ec53ULL;
 
 // function declarations
-uint32_t left_circular_rotate(uint32_t data, uint32_t rotation_bits, uint32_t hash_size);
-uint32_t process_block_data_to_hash(uint32_t block_data, uint32_t hash);
-uint32_t process_blocks(const int block_count, uint32_t hash, const uint8_t *data);
-uint32_t process_tailing_bytes(int block_count, uint32_t hash, const uint8_t *data, size_t len);
+uint64_t left_circular_rotate(uint64_t data, uint32_t rotation_bits, uint32_t hash_size);
+uint64_t process_block_data_to_hash(uint64_t block_data, uint64_t hash);
+uint64_t process_blocks(const int block_count, uint64_t hash, const uint8_t *data);
+uint64_t process_tailing_bytes(int block_count, uint64_t hash, const uint8_t *data, size_t len);
 
 
 /**
@@ -35,7 +39,7 @@ uint32_t process_tailing_bytes(int block_count, uint32_t hash, const uint8_t *da
  * @param hash_size The bit-width of the hash (typically 32).
  * @return The result of the left circular rotation.
  */
-uint32_t left_circular_rotate(uint32_t data, uint32_t rotation_bits, uint32_t hash_size) {
+uint64_t left_circular_rotate(uint64_t data, uint32_t rotation_bits, uint32_t hash_size) {
     return (data << rotation_bits) | (data >> (hash_size - rotation_bits));
 }
 
@@ -51,7 +55,7 @@ uint32_t left_circular_rotate(uint32_t data, uint32_t rotation_bits, uint32_t ha
  * @param hash The current hash value to be updated.
  * @return The updated hash value after processing the block data.
  */
-uint32_t process_block_data_to_hash(uint32_t block_data, uint32_t hash)
+uint64_t process_block_data_to_hash(uint64_t block_data, uint64_t hash)
 {
     block_data *= block_mix_constant_1;
     block_data = left_circular_rotate(block_data, block_rotation_bits, hash_size);
@@ -74,19 +78,14 @@ uint32_t process_block_data_to_hash(uint32_t block_data, uint32_t hash)
  * @param data Pointer to the input data buffer containing the blocks.
  * @return The updated hash value after processing all blocks.
  */
-uint32_t process_blocks(const int block_count, uint32_t hash, const uint8_t *data) {
-
-    const uint32_t *blocks = (const uint32_t*)(data + block_count * block_size);
-
-    for (int i = -block_count; i; i++)
-    {
-        uint32_t block_data = blocks[i];
-
+uint64_t process_blocks(const int block_count, uint64_t hash, const uint8_t *data) {
+    const uint64_t *blocks = (const uint64_t*)(data);
+    for (int i = 0; i < block_count; i++) {
+        uint64_t block_data = blocks[i];
         hash = process_block_data_to_hash(block_data, hash);
         hash = left_circular_rotate(hash, hash_rotation_bits, hash_size);
         hash = hash * hash_multiplier + hash_addition_constant;
     }
-
     return hash;
 }
 
@@ -103,23 +102,22 @@ uint32_t process_blocks(const int block_count, uint32_t hash, const uint8_t *dat
  * @param len The total length of the input data.
  * @return The updated hash value after processing the tailing bytes.
  */
-uint32_t process_tailing_bytes(const int block_count, uint32_t hash, const uint8_t *data, size_t len) {
-    const uint8_t *tail = (const uint8_t *) (data + block_count * block_size);
+uint64_t process_tailing_bytes(const int block_count, uint64_t hash, const uint8_t *data, size_t len) {
+    const uint8_t *tail = (const uint8_t *)(data + block_count * block_size);
     int tail_bytes = len & (block_size - 1);
-
-    if(! tail_bytes) {
+    if (!tail_bytes) {
         return hash;
     }
-
-    uint32_t block_data = 0;
-
-    switch (tail_bytes)
-    {
-        case 3: block_data ^= tail[2] << tailing_bytes_shift_1; // fall through
-        case 2: block_data ^= tail[1] << tailing_bytes_shift_2; // fall through
-        case 1: block_data ^= tail[0];       // fall through
+    uint64_t block_data = 0;
+    switch (tail_bytes) {
+        case 7: block_data ^= ((uint64_t)tail[6]) << tailing_bytes_shift_6; // fall through
+        case 6: block_data ^= ((uint64_t)tail[5]) << tailing_bytes_shift_5; // fall through
+        case 5: block_data ^= ((uint64_t)tail[4]) << tailing_bytes_shift_4; // fall through
+        case 4: block_data ^= ((uint64_t)tail[3]) << tailing_bytes_shift_3; // fall through
+        case 3: block_data ^= ((uint64_t)tail[2]) << tailing_bytes_shift_2; // fall through
+        case 2: block_data ^= ((uint64_t)tail[1]) << tailing_bytes_shift_1; // fall through
+        case 1: block_data ^= ((uint64_t)tail[0]);
     }
-
     hash = process_block_data_to_hash(block_data, hash);
     return hash;
 }
@@ -136,7 +134,7 @@ uint32_t process_tailing_bytes(const int block_count, uint32_t hash, const uint8
  * @param hash The initial hash value to be finalized.
  * @return The finalized hash value.
  */
-uint32_t finalization(uint32_t hash) {
+uint64_t finalization(uint64_t hash) {
     hash ^= hash >> finalization_shift_1;
     hash *= finalization_multiplier_1;
     hash ^= hash >> finalization_shift_2;
@@ -148,7 +146,7 @@ uint32_t finalization(uint32_t hash) {
 
 
 /**
- * @brief Computes a 32-bit MurmurHash for the given key.
+ * @brief Computes a 64-bit MurmurHash for the given key.
  *
  * This function applies the MurmurHash algorithm to the input string `key`
  * using the specified `seed`. It processes the input in 4-byte blocks,
@@ -157,21 +155,18 @@ uint32_t finalization(uint32_t hash) {
  *
  * @param key   The input string to hash.
  * @param seed  The seed value for the hash function.
- * @return      The resulting 32-bit hash value or UINT32_MAX on error.
+ * @return      The resulting 64-bit hash value or UINT64_MAX on error.
  */
-uint32_t hash_function_murmur_32(const char *key,  uint32_t seed) {
-  
+uint64_t hash_function_murmur_64(const char *key,  uint64_t seed) {
     //Validation
     if (key == NULL) {
-        return UINT32_MAX;  // Return error code for NULL keys
+        return UINT64_MAX;  // Return error code for NULL keys
     }
-
     // Initialize
     const uint8_t *data = (const uint8_t *)key;
     size_t len = strlen(key);
-    const int block_count = len / block_size; // Number of 4-byte blocks
-    uint32_t hash = seed;
-
+    const int block_count = len / block_size; // Number of 8-byte blocks
+    uint64_t hash = seed;
     hash = process_blocks(block_count, hash, data);
     hash = process_tailing_bytes(block_count, hash, data, len);
     hash = finalization(hash);

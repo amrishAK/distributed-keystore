@@ -1,9 +1,9 @@
 /**
  * @file memory_manager.h
- * @brief Memory management utilities for distributed keystore.
+ * @brief Memory management utilities for the KeyStore.
  *
  * This header provides types and functions for managing memory pools and
- * general memory allocation in the distributed keystore project.
+ * general memory allocation in the KeyStore project.
  *
  * Types:
  * - memory_pool_type_t: Enum for memory pool selection (NONE, LIST_POOL, TREE_POOL).
@@ -30,52 +30,20 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include "type_definitions/error_code_definitions.h"
+#include "type_definitions/sucess_code_definitions.h"
+#include "type_definitions/config_type_definitions.h"
+#include "type_definitions/custom_type_definitions.h"
 
+typedef struct
+{
+	unsigned long malloc_calls;
+	unsigned long calloc_calls;
+	unsigned long realloc_calls;
+	unsigned long free_calls;
+	unsigned long slow_path_allocations;
+} memory_allocator_metrics;
 
-/**
- * @enum memory_pool_type_t
- * @brief Represents the type of memory pool used in the memory manager.
- *
- * This enumeration defines the available memory pool types:
- * @note - LIST_POOL: A memory pool based on a list structure.
- * @note - TREE_POOL: A memory pool based on a tree structure.
- */
-typedef enum memory_pool_type_t {
-    NO_POOL,
-    LIST_POOL,
-    TREE_POOL
-} memory_pool_type_t;
-
-
-/**
- * @struct memory_pool
- * @brief Structure representing a memory pool for efficient memory management.
- */
-typedef struct memory_pool {
-    
-    size_t block_size; // Size of each block
-    char* pool_start_ptr; // Pointer to the start of the pool memory
-    char* pool_end_ptr;   // Pointer to the end of the pool memory
-    void *next_block_ptr; // Pointer to the next available block
-
-    unsigned int total_blocks; // Total number of blocks in the pool
-    unsigned int available_blocks; // Number of blocks available for allocation
-    unsigned int reusable_blocks;  // Number of blocks available for reuse
-
-    void ** free_block_list; // Array of pointers to free blocks
-    bool is_initialized; // Flag to indicate if the pool is initialized
-
-    pthread_mutex_t pool_lock; // Mutex for thread-safe access
-
-} memory_pool;
-
-typedef struct memory_manager_config {
-    unsigned int bucket_size;
-    double pre_allocation_factor;
-    bool allocate_list_pool;
-    bool allocate_tree_pool;
-    bool is_concurrency_enabled;
-} memory_manager_config;
 
 /**
  * @fn initialize_memory_manager
@@ -104,20 +72,15 @@ int cleanup_memory_manager(void);
 
 
 /**
- * @brief Allocates a memory block from the specified memory pool.
+ * @fn allocate_memory_from_pool
+ * @brief Allocates a block of memory from the linked list memory pool.
  *
- * This function obtains a memory block from the given pool type, which helps optimize
- * allocation for commonly used data structures. The memory pool mechanism can improve
- * performance and reduce fragmentation for frequent allocations.
+ * This function attempts to allocate a memory block from the designated memory pool.
+ * If the pool is exhausted, it falls back to standard malloc().
  *
- * @note - If the specified pool type is unsupported, the function returns NULL.
- * @note - If the pool is exhausted, it falls back to standard malloc.
- * @note - The caller is responsible for freeing the allocated memory using free_memory().
- * @note - Ensure that the memory manager is initialized before calling this function.
- * @param pool_type The type of memory pool to allocate from (e.g., LIST_POOL, TREE_POOL).
- * @return A pointer to the allocated memory block, or NULL if allocation fails.
+ * @return Pointer to the allocated memory block, or NULL if allocation fails.
  */
-void* allocate_memory_from_pool(memory_pool_type_t pool_type);
+void* allocate_memory_from_pool();
 
 /**
  * @brief Allocates a block of memory of the given size.
@@ -130,6 +93,16 @@ void* allocate_memory_from_pool(memory_pool_type_t pool_type);
  */
 void* allocate_memory(size_t size);
 
+
+/**
+ * @fn callocate_memory
+ * @brief Allocates and zero-initializes an array of memory blocks.
+ * @param num Number of elements to allocate.
+ * @param size Size of each element in bytes.
+ * @return A pointer to the allocated memory block, or NULL if allocation fails.
+ * @note - It uses standard calloc() internally.
+ */
+void* callocate_memory(size_t num, size_t size);
 
 /**
  * @fn reallocate_memory
@@ -154,8 +127,11 @@ void* reallocate_memory(void *ptr, size_t new_size);
  * @note If the reused block list in the pool is full, it falls back to standard free().
  * @note - it uses standard free() if the pointer is not from the pool.
  * @param ptr Pointer to the memory block to free.
- * @param pool_type The type of memory pool the block was allocated from (LIST_POOL, TREE_POOL).
+ * @param is_pool Indicates whether the memory block was allocated from a pool.
  */
-void free_memory(void* ptr, memory_pool_type_t pool_type);
+void free_memory(void* ptr, bool is_pool);
+
+void reset_memory_allocator_metrics(void);
+memory_allocator_metrics get_memory_allocator_metrics(void);
 
 #endif // MEMORY_MANAGER_H

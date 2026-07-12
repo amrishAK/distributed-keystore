@@ -1,11 +1,11 @@
 #include "memory_manager.h"
-#include "core/type_definition.h"
+#include "type_definitions/hash_bucket_type_definition.h"
 #include <math.h>
 
 #pragma region Private Global Variables
 static memory_pool g_list_pool = {0};
-static memory_pool g_tree_pool = {0};
 static memory_manager_config g_config = {0};
+static memory_allocator_metrics g_allocator_metrics = {0};
 
 #pragma endregion
 
@@ -22,15 +22,15 @@ static int _cleanup_memory_pool(memory_pool *pool);
 #pragma region Public Function Definitions
 int initialize_memory_manager(const memory_manager_config config)
 {
-    if(config.bucket_size == 0 || config.pre_allocation_factor <= 0 || config.pre_allocation_factor > 1) return -21; // Invalid configuration parameters error
+    if(g_list_pool.is_initialized) return SUCCESS; // Already initialized — idempotent re-entry
+    if(config.bucket_size == 0 || config.pre_allocation_factor < 0 || config.pre_allocation_factor > 1) return ERR_INVALID_CONFIG; // Invalid configuration parameters error
 
     g_config = config;
     int pool_creation_result = 0;
 
-    if(config.allocate_list_pool)  pool_creation_result = _create_memory_pool(&g_list_pool, sizeof(list_node));
+    if(config.allocate_list_pool)  pool_creation_result = _create_memory_pool(&g_list_pool, sizeof(linked_list_node));
 
-    if(config.allocate_tree_pool)  pool_creation_result = _create_memory_pool(&g_tree_pool, sizeof(tree_node));
-
+    
     if(pool_creation_result != 0) cleanup_memory_manager();
 
     return pool_creation_result;
@@ -42,53 +42,78 @@ int cleanup_memory_manager(void)
 
     if(g_config.allocate_list_pool)  result = _cleanup_memory_pool(&g_list_pool);
 
-    if(g_config.allocate_tree_pool)  result = _cleanup_memory_pool(&g_tree_pool);
-
     g_config = (memory_manager_config){0}; // Reset config
     return result;
 }
 
 
-void* allocate_memory_from_pool(memory_pool_type_t pool_type)
+void* allocate_memory_from_pool()
 {
-    switch(pool_type)
+    if (g_list_pool.is_initialized)
     {
-        case LIST_POOL: return _allocate_memory_from_pool(&g_list_pool);
-        case TREE_POOL: return _allocate_memory_from_pool(&g_tree_pool);
-        default: return NULL; // Unsupported pool type
+        return _allocate_memory_from_pool(&g_list_pool);
     }
+
+    ++g_allocator_metrics.malloc_calls;
+    return malloc(sizeof(linked_list_node));
 }
 
 void* allocate_memory(size_t size)
 {
+    ++g_allocator_metrics.malloc_calls;
     return malloc(size);
 }
 
-void free_memory(void *ptr, memory_pool_type_t pool_type)
+void* callocate_memory(size_t num, size_t size)
 {
-    switch(pool_type)
+    ++g_allocator_metrics.calloc_calls;
+    return calloc(num, size);
+}
+
+
+void free_memory(void *ptr, bool is_pool)
+{
+    if(is_pool && g_list_pool.is_initialized)
     {
-        case LIST_POOL: _free_memory_to_pool(&g_list_pool, ptr); break;
-        case TREE_POOL: _free_memory_to_pool(&g_tree_pool, ptr); break;
-        default: free(ptr); // Use standard free for unsupported pool types
+        _free_memory_to_pool(&g_list_pool, ptr);
+    }
+    else
+    {
+        ++g_allocator_metrics.free_calls;
+        free(ptr);
     }
 }
 
 void* reallocate_memory(void *ptr, size_t new_size)
 {
-   
-    if (ptr == NULL) return malloc(new_size); // Standard realloc behavior
+    if (ptr == NULL)
+    {
+        ++g_allocator_metrics.malloc_calls;
+        return malloc(new_size); // Standard realloc behavior
+    }
 
     if(new_size == 0)
     {
+        ++g_allocator_metrics.free_calls;
         free(ptr);
         return NULL; // Free memory if new size is zero
     }
 
+    ++g_allocator_metrics.realloc_calls;
     void *new_ptr = realloc(ptr, new_size);
     if (new_ptr == NULL) return NULL; // Handle reallocation failure
 
     return new_ptr;
+}
+
+void reset_memory_allocator_metrics(void)
+{
+    g_allocator_metrics = (memory_allocator_metrics){0};
+}
+
+memory_allocator_metrics get_memory_allocator_metrics(void)
+{
+    return g_allocator_metrics;
 }
 
 #pragma endregion
@@ -109,7 +134,7 @@ void* reallocate_memory(void *ptr, size_t new_size)
  */
 int _create_memory_pool(memory_pool *pool, size_t block_size)
 {
-    if(pool == NULL || block_size == 0 || g_config.pre_allocation_factor < 0) return -21; // Invalid parameters error
+    if(pool == NULL || block_size == 0 || g_config.pre_allocation_factor < 0) return ERR_INVALID_ARGUMENT; // Invalid parameters error
 
     if(g_config.pre_allocation_factor == 0) return 0; // No pre-allocation requested
 
@@ -118,23 +143,29 @@ int _create_memory_pool(memory_pool *pool, size_t block_size)
     pool->available_blocks = pool->total_blocks;
     pool->reusable_blocks = 0;
     pool->is_initialized = false;
-    
-    if(g_config.is_concurrency_enabled) 
-    {
-        if(pthread_mutex_init(&pool->pool_lock, NULL) != 0) return -11; // Mutex initialization failed
-    }
+
+    // The allocator can be reached concurrently via background resize workers
+    // even in benchmark "single-thread" scenarios, so pool metadata must
+    // always be guarded.
+    if(pthread_mutex_init(&pool->pool_lock, NULL) != 0) return ERR_RESOURCE_INIT_FAILED; // Mutex initialization failed
 
     // Allocate memory for the pool
+    ++g_allocator_metrics.malloc_calls;
     pool->next_block_ptr = malloc(block_size * pool->total_blocks);
-    if(pool->next_block_ptr == NULL) return -10; // Memory allocation failed
+    if(pool->next_block_ptr == NULL) {
+        pthread_mutex_destroy(&pool->pool_lock);
+        return ERR_MEMORY_ALLOCATION_FAILED; // Memory allocation failed
+    }
 
     // Allocate memory for the free block list
+    ++g_allocator_metrics.malloc_calls;
     pool->free_block_list = (void **)malloc(sizeof(void *) * pool->total_blocks);
     if(pool->free_block_list == NULL)
     {
         free(pool->next_block_ptr);
         pool->next_block_ptr = NULL;
-        return -10; // Memory allocation failed
+        pthread_mutex_destroy(&pool->pool_lock);
+        return ERR_MEMORY_ALLOCATION_FAILED; // Memory allocation failed
     }
 
     pool->pool_start_ptr = (char *)pool->next_block_ptr;
@@ -142,7 +173,7 @@ int _create_memory_pool(memory_pool *pool, size_t block_size)
     pool->is_initialized = true;
 
 
-    return 0; // Success
+    return SUCCESS; // Success
 }
 
 
@@ -160,7 +191,7 @@ int _create_memory_pool(memory_pool *pool, size_t block_size)
  */
 void* _allocate_memory_from_pool(memory_pool *memory_pool)
 {
-    if(g_config.is_concurrency_enabled) pthread_mutex_lock(&memory_pool->pool_lock);
+    pthread_mutex_lock(&memory_pool->pool_lock);
 
     void* mem = NULL;
 
@@ -180,12 +211,14 @@ void* _allocate_memory_from_pool(memory_pool *memory_pool)
             }
             else
             {
+                ++g_allocator_metrics.malloc_calls;
+                ++g_allocator_metrics.slow_path_allocations;
                 mem = malloc(memory_pool->block_size); // Fallback to standard malloc if pool is exhausted
             }
         }
     }
 
-    if(g_config.is_concurrency_enabled) pthread_mutex_unlock(&memory_pool->pool_lock);
+    pthread_mutex_unlock(&memory_pool->pool_lock);
     return mem;
 }
 
@@ -206,7 +239,7 @@ void _free_memory_to_pool(memory_pool *memory_pool, void *ptr)
 
     if(memory_pool->is_initialized)
     {    
-        if(g_config.is_concurrency_enabled) pthread_mutex_lock(&memory_pool->pool_lock);
+        pthread_mutex_lock(&memory_pool->pool_lock);
         
         if(_is_pointer_from_pool(memory_pool, ptr))
         {
@@ -217,10 +250,14 @@ void _free_memory_to_pool(memory_pool *memory_pool, void *ptr)
             }
         }
 
-        if(g_config.is_concurrency_enabled) pthread_mutex_unlock(&memory_pool->pool_lock);
+        pthread_mutex_unlock(&memory_pool->pool_lock);
     }
 
-    if(std_cleanup) free(ptr); // Fallback to standard free if not from pool or pool is full
+    if(std_cleanup)
+    {
+        ++g_allocator_metrics.free_calls;
+        free(ptr); // Fallback to standard free if not from pool or pool is full
+    }
 }
 
 
@@ -259,33 +296,37 @@ bool _is_pointer_from_pool (memory_pool *pool, void *ptr) {
  */
 int _cleanup_memory_pool(memory_pool *pool)
 {
-    if(pool == NULL) return -20; // Invalid parameter
+    if(pool == NULL) return ERR_INVALID_ARGUMENT;
 
-    if(!pool->is_initialized) return 0; // Nothing to clean up
-
-    if(pool->pool_start_ptr != NULL)
-    {
+    // Free only what was directly allocated.
+    // pool_start_ptr holds the original malloc address; next_block_ptr advances
+    // during allocation and must NOT be freed directly.
+    if(pool->pool_start_ptr) {
+        ++g_allocator_metrics.free_calls;
         free(pool->pool_start_ptr);
         pool->pool_start_ptr = NULL;
+        pool->pool_end_ptr = NULL;
+        pool->next_block_ptr = NULL;
     }
-
-    if(pool->free_block_list != NULL)
-    {
+    if(pool->free_block_list) {
+        ++g_allocator_metrics.free_calls;
         free(pool->free_block_list);
         pool->free_block_list = NULL;
     }
 
+    // Destroy mutex if needed
+    if(pool->is_initialized) {
+        pthread_mutex_destroy(&pool->pool_lock);
+    }
+
+    // Reset all fields
     pool->block_size = 0;
     pool->total_blocks = 0;
     pool->reusable_blocks = 0;
-    pool->is_initialized = false;
     pool->available_blocks = 0;
-    pool->next_block_ptr = NULL;
-    pool->pool_end_ptr = NULL;
+    pool->is_initialized = false;
 
-    if(g_config.is_concurrency_enabled) pthread_mutex_destroy(&pool->pool_lock);
-
-    return 0; // Success
+    return SUCCESS;
 }
 
 #pragma endregion
