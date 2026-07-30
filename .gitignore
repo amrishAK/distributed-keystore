@@ -60,5 +60,9 @@ dkms.conf
 *.gcno
 *.gcovrc
 
+# Python cache artifacts
+*.pyc
+**/__pycache__/
+
 **/bin/
 **/.result/
