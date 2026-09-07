@@ -19,13 +19,15 @@ This document details key design choices, rationale, and known limitations in Ke
 
 ### Resize Strategy: Always Double
 
-**Decision:** When a sub-hash-bucket's chain exceeds `max_linked_list_chain_length`, resizing always multiplies bucket size by 2. No shrinking is implemented.
+**Decision:** When a sub-hash-bucket's chain exceeds `max_linked_list_chain_length`, the sub-table size is doubled (multiplied by 2). No shrinking is implemented.
 
 **Rationale:**
 - Doubling is a well-proven strategy that guarantees amortized O(1) insertion.
 - Shrinking adds complexity and is rarely needed in append-heavy or steady-state workloads.
 
 **Trade-off:** Memory utilization after bulk deletions may be suboptimal. Shrinking is reserved for v2.0 if workload patterns demand it.
+
+See [docs/architecture/04-two-level-hash-table.md](./architecture/04-two-level-hash-table.md) for collision resolution and threshold details.
 
 ---
 
@@ -110,19 +112,17 @@ Locks are never held simultaneously.
 
 ### Debug Traces in Production Code
 
-**Issue:** `printf` debug traces are present throughout the codebase. These should be removed or guarded for production use.
+**Status:** ✅ Resolved — Production code is clean.
 
-**Status:** Open — marked for cleanup before v1.0 final release.
-
-**Suggested Approach:** Replace with a structured logging abstraction (see [progress.md](./progress.md) for "Logging abstraction" task).
+The core keystore library (`src/keystore/`) contains no debug `printf` or `fprintf` traces. Test and benchmark code use output appropriately. A logging abstraction header `utils/logging.h` is provided for future use if needed.
 
 ---
 
 ### Platform-Specific Code: POSIX Sleep
 
-**Limitation:** `usleep(100)` is used in the chase worker loop. This is POSIX only. Windows builds use `Sleep(0)` as a fallback, but this may cause busy-waiting or unexpected latency on Windows.
+**Status:** ✅ Resolved — Cross-platform abstraction implemented.
 
-**Status:** Partially mitigated. Full cross-platform sleep abstraction reserved for v2.0.
+The codebase uses `portable_sleep_ms()` and `portable_sleep_us()` from `utils/helper_functions.h`, which provides Windows and POSIX implementations. All resize paths and chase buffer worker use these functions for portability.
 
 ---
 
@@ -141,5 +141,5 @@ Locks are never held simultaneously.
 - [Architecture Overview](./architecture/01-overview.md) — complete subsystem descriptions
 - [Concurrency Model](./architecture/07-concurrency-model.md) — two-phase lock protocol, invariants
 - [Memory Management](./architecture/09-memory-management.md) — memory pool, ownership rules
-- [Error Handling](./architecture/11-error-handling.md) — error propagation strategy
+- [Error Codes](../ERROR_CODES.md) — error propagation strategy
 - [Progress](./progress.md) — v1.0 checklist and open issues

@@ -75,9 +75,89 @@ This document lists all custom error and return codes used in the KeyStore proje
 
 ### Sub Hash Table Operation Errors
 | Code  | Name                               | Meaning/Description           | Recovery |
-|-------|---------------------------------------|-------------------------------|-----------|
+|-------|------------------------------------|---------------------------------|----------|
 | -60   | ERR_SUB_HASH_TABLE_NOT_INITIALIZED | Sub-hash table not initialized | Initialize sub-table; verify parent table setup |
 | -61   | ERR_SUB_HASH_BUCKET_NOT_FOUND      | Sub-hash bucket not found     | Verify secondary hash computation; check sub-table state |
+| -62   | ERR_UNSUPPORTED_SUB_HASH_TABLE_OP  | Unsupported sub-hash table op | Review operation type; use correct API |
+| -63   | ERR_SUB_HASH_TABLE_RESIZE_FAILED   | Sub-hash table resize failed  | Check memory availability; verify resize logic |
+| -64   | ERR_SUB_HASH_BUCKET_NOT_INITIALIZED| Sub-hash bucket not initialized | Initialize bucket; verify parent table state |
+
+### Linked List Operation Errors
+| Code  | Name                             | Meaning/Description           | Recovery |
+|-------|----------------------------------|-------------------------------|----------|
+| -70   | ERR_LINKED_LIST_NODE_NOT_FOUND   | Linked list node not found    | Verify key exists; check list traversal logic |
+| -71   | ERR_LINKED_LIST_NODE_CREATION_FAILED | Linked list node creation failed | Check memory availability; verify node factory |
+| -72   | ERR_UNSUPPORTED_LINKED_LIST_OP   | Unsupported linked list op    | Use correct list operation; check API |
+
+### Data Node Operation Errors
+| Code  | Name                        | Meaning/Description           | Recovery |
+|-------|-----------------------------|-------------------------------|----------|
+| -80   | ERR_DATA_NODE_NOT_FOUND     | Data node not found           | Verify key exists in table; check traversal |
+| -81   | ERR_DATA_NODE_UPDATE_FAILED | Data node update failed       | Check lock state; verify value size; retry |
+| -82   | ERR_UNSUPPORTED_DATA_NODE_OP| Unsupported data node op      | Use correct node operation; verify API |
+| -83   | ERR_DATA_NODE_CREATION_FAILED | Data node creation failed    | Check memory; verify value size valid |
+
+### Pool/Manager Specific Errors
+| Code  | Name                      | Meaning/Description           | Recovery |
+|-------|---------------------------|-------------------------------|----------|
+| -90   | ERR_POOL_NOT_INITIALIZED  | Memory pool not initialized   | Initialize memory pool before allocation |
+| -91   | ERR_POOL_EXHAUSTED        | Memory pool exhausted         | Increase pool size; free unused blocks; retry |
+| -92   | ERR_POOL_CORRUPTION_DETECTED | Memory pool corruption detected | Verify pool integrity; enable memory sanitizer; inspect allocations |
+
+### Platform/Threading Errors
+| Code   | Name                        | Meaning/Description         | Recovery |
+|--------|-----------------------------|-----------------------------|----------|
+| -100   | ERR_UNSUPPORTED_PLATFORM    | Platform not supported      | Check platform compatibility; enable platform-specific code |
+| -101   | ERR_THREAD_CREATION_FAILED  | Thread creation failed      | Verify thread limit; check system resources; retry |
+| -102   | ERR_MAX_RETRY_EXCEEDED      | Max retry attempts exceeded | Increase retry limit or backoff threshold; investigate root cause |
+
+---
+
+## Error Handling by Operation
+
+### SET Operations
+Possible codes: `SUCCESS` (0), `SUCESS_ADDED_NEW_NODE` (10), `SUCESS_ADDED_NEW_NODE_RESZING_TRIGGERED` (20), errors: -11, -12, -20, -21, -30, -40, -41, -50, -51, -83
+
+**Recovery Strategy:** Retry memory errors with backoff; check initialization if -50/-51 returned.
+
+### GET Operations
+Possible codes: `SUCCESS` (0), errors: -11, -40, -41, -50, -51, -80
+
+**Recovery Strategy:** If -80 returned, key does not exist or is deleted; check if key should have been added first.
+
+### DELETE Operations
+Possible codes: `SUCCESS` (0), errors: -11, -40, -41, -50, -51, -80
+
+**Recovery Strategy:** If -80 returned, key does not exist; verify correct key name.
+
+### Initialization/Cleanup
+Possible codes: `SUCCESS` (0), errors: -11, -12, -20, -21, -22
+
+**Recovery Strategy:** For -21/-22, check system resources (file descriptors, mutex limits); for -20, free memory and retry.
+
+---
+
+## Best Practices
+
+1. **Always check return codes** — do not assume success
+2. **Log specific error codes** — helps debugging and monitoring
+3. **Use error patterns for recovery:**
+   - Memory errors (-20, -21, -22): Retry with exponential backoff
+   - Lock errors (-30 to -35): Check for deadlock; enable debug tracing
+   - Initialization errors (-50, -60, -90): Verify init was called before operations
+   - "Not found" errors (-80): Check if key should exist
+4. **Memory management:** Always `free()` allocated pointers on SUCCESS from get_key()
+5. **Thread safety:** All error codes are thread-safe; no implicit side effects
+
+---
+
+## Known Typos in Source Code
+
+> **Note:** Source files contain typos that will be addressed in a future cleanup:
+> - `SUCESS` should be `SUCCESS` (missing 'C')
+> - `RESZING` should be `RESIZING` (missing 'I')
+>
+> For now, use the constants as defined in the header files and reference this document for canonical descriptions.
 | -62   | ERR_UNSUPPORTED_SUB_HASH_TABLE_OP  | Unsupported sub-hash table op | Review operation type; use correct API |
 | -63   | ERR_SUB_HASH_TABLE_RESIZE_FAILED   | Sub-hash table resize failed  | Check memory availability; verify resize logic |
 | -64   | ERR_SUB_HASH_BUCKET_NOT_INITIALIZED| Sub-hash bucket not initialized | Initialize bucket; verify parent table state |
