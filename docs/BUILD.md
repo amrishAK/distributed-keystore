@@ -158,6 +158,32 @@ cmake -DBUILD_UNIT_TESTS=ON -DBUILD_INTEGRATION_TESTS=ON -DBUILD_BENCHMARKS=OFF 
 cmake -DBUILD_UNIT_TESTS=ON -DBUILD_INTEGRATION_TESTS=ON -DBUILD_BENCHMARKS=ON -DBUILD_COVERAGE=ON ..
 ```
 
+### Local Validation Checks
+
+The CI workflow is the canonical cross-platform check. For local runs (Windows
+native or WSL/Linux), use the scripts under `validation-scripts/` — see
+[validation-scripts/README.md](../validation-scripts/README.md) for the full list. For a WSL
+sanitizer run:
+
+```bash
+bash validation-scripts/sanitizer_check.sh
+```
+
+It configures a clean-compatible Debug sanitizer build, builds unit and
+integration tests, and runs CTest. Under WSL2, the default is ASan/UBSan because
+GCC ThreadSanitizer cannot reserve its shadow memory in the WSL2 runtime. Native
+Linux defaults to ThreadSanitizer. Override `SANITIZERS`, `CC`, or `CXX` when
+needed, for example:
+
+```bash
+SANITIZERS=address,undefined CC=gcc-13 CXX=g++-13 bash validation-scripts/sanitizer_check.sh
+```
+
+This helper is intended for WSL/Linux only. Run ThreadSanitizer on native Linux
+or in CI; an explicit `SANITIZERS=thread` request under WSL2 is rejected. CI
+uses the equivalent commands in `.github/workflows/build-validation.yml`
+directly.
+
 ## Detailed Target Reference
 
 ### Core Targets

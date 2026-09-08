@@ -6,7 +6,6 @@
 #include <stdio.h>
 
 #include "single_thread_models.h"
-#include "utils/memory_manager.h"
 
 typedef struct
 {
@@ -34,7 +33,6 @@ typedef struct
     uint64_t latency_p95_ns;
     uint64_t latency_p99_ns;
     uint64_t latency_max_ns;
-    memory_allocator_metrics allocator;
 } bench_result;
 
 int run_single_thread_scenario(const bench_scenario *scenario, bench_result *result);

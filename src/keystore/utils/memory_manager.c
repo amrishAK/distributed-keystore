@@ -1,19 +1,10 @@
 #include "memory_manager.h"
 #include "type_definitions/hash_bucket_type_definition.h"
 #include <math.h>
-#include <stdatomic.h>
 
 #pragma region Private Global Variables
 static memory_pool g_list_pool = {0};
 static memory_manager_config g_config = {0};
-static struct
-{
-    atomic_ulong malloc_calls;
-    atomic_ulong calloc_calls;
-    atomic_ulong realloc_calls;
-    atomic_ulong free_calls;
-    atomic_ulong slow_path_allocations;
-} g_allocator_metrics = {0};
 
 #pragma endregion
 
@@ -24,11 +15,6 @@ static void* _allocate_memory_from_pool(memory_pool *memory_pool);
 static void _free_memory_to_pool(memory_pool *memory_pool, void *ptr);
 static bool _is_pointer_from_pool (memory_pool *pool, void *ptr);
 static int _cleanup_memory_pool(memory_pool *pool);
-static void _metrics_inc_malloc(void);
-static void _metrics_inc_calloc(void);
-static void _metrics_inc_realloc(void);
-static void _metrics_inc_free(void);
-static void _metrics_inc_slow_path(void);
 static void _lock_pool(memory_pool *pool);
 static void _unlock_pool(memory_pool *pool);
 
@@ -69,19 +55,16 @@ void* allocate_memory_from_pool()
         return _allocate_memory_from_pool(&g_list_pool);
     }
 
-    _metrics_inc_malloc();
     return malloc(sizeof(linked_list_node));
 }
 
 void* allocate_memory(size_t size)
 {
-    _metrics_inc_malloc();
     return malloc(size);
 }
 
 void* callocate_memory(size_t num, size_t size)
 {
-    _metrics_inc_calloc();
     return calloc(num, size);
 }
 
@@ -94,7 +77,6 @@ void free_memory(void *ptr, bool is_pool)
     }
     else
     {
-        _metrics_inc_free();
         free(ptr);
     }
 }
@@ -103,73 +85,24 @@ void* reallocate_memory(void *ptr, size_t new_size)
 {
     if (ptr == NULL)
     {
-        _metrics_inc_malloc();
         return malloc(new_size); // Standard realloc behavior
     }
 
     if(new_size == 0)
     {
-        _metrics_inc_free();
         free(ptr);
         return NULL; // Free memory if new size is zero
     }
 
-    _metrics_inc_realloc();
     void *new_ptr = realloc(ptr, new_size);
     if (new_ptr == NULL) return NULL; // Handle reallocation failure
 
     return new_ptr;
 }
 
-void reset_memory_allocator_metrics(void)
-{
-    atomic_store_explicit(&g_allocator_metrics.malloc_calls, 0, memory_order_relaxed);
-    atomic_store_explicit(&g_allocator_metrics.calloc_calls, 0, memory_order_relaxed);
-    atomic_store_explicit(&g_allocator_metrics.realloc_calls, 0, memory_order_relaxed);
-    atomic_store_explicit(&g_allocator_metrics.free_calls, 0, memory_order_relaxed);
-    atomic_store_explicit(&g_allocator_metrics.slow_path_allocations, 0, memory_order_relaxed);
-}
-
-memory_allocator_metrics get_memory_allocator_metrics(void)
-{
-    memory_allocator_metrics snapshot = {
-        .malloc_calls = atomic_load_explicit(&g_allocator_metrics.malloc_calls, memory_order_relaxed),
-        .calloc_calls = atomic_load_explicit(&g_allocator_metrics.calloc_calls, memory_order_relaxed),
-        .realloc_calls = atomic_load_explicit(&g_allocator_metrics.realloc_calls, memory_order_relaxed),
-        .free_calls = atomic_load_explicit(&g_allocator_metrics.free_calls, memory_order_relaxed),
-        .slow_path_allocations = atomic_load_explicit(&g_allocator_metrics.slow_path_allocations, memory_order_relaxed)
-    };
-    return snapshot;
-}
-
 #pragma endregion
 
 #pragma region Private Function Definitions
-
-static void _metrics_inc_malloc(void)
-{
-    atomic_fetch_add_explicit(&g_allocator_metrics.malloc_calls, 1, memory_order_relaxed);
-}
-
-static void _metrics_inc_calloc(void)
-{
-    atomic_fetch_add_explicit(&g_allocator_metrics.calloc_calls, 1, memory_order_relaxed);
-}
-
-static void _metrics_inc_realloc(void)
-{
-    atomic_fetch_add_explicit(&g_allocator_metrics.realloc_calls, 1, memory_order_relaxed);
-}
-
-static void _metrics_inc_free(void)
-{
-    atomic_fetch_add_explicit(&g_allocator_metrics.free_calls, 1, memory_order_relaxed);
-}
-
-static void _metrics_inc_slow_path(void)
-{
-    atomic_fetch_add_explicit(&g_allocator_metrics.slow_path_allocations, 1, memory_order_relaxed);
-}
 
 /**
  * @fn _create_memory_pool
@@ -203,7 +136,6 @@ int _create_memory_pool(memory_pool *pool, size_t block_size)
     }
 
     // Allocate memory for the pool
-    _metrics_inc_malloc();
     pool->next_block_ptr = malloc(block_size * pool->total_blocks);
     if(pool->next_block_ptr == NULL) {
         if(g_config.is_concurrency_enabled) pthread_mutex_destroy(&pool->pool_lock);
@@ -211,7 +143,6 @@ int _create_memory_pool(memory_pool *pool, size_t block_size)
     }
 
     // Allocate memory for the free block list
-    _metrics_inc_malloc();
     pool->free_block_list = (void **)malloc(sizeof(void *) * pool->total_blocks);
     if(pool->free_block_list == NULL)
     {
@@ -264,8 +195,6 @@ void* _allocate_memory_from_pool(memory_pool *memory_pool)
             }
             else
             {
-                _metrics_inc_malloc();
-                _metrics_inc_slow_path();
                 mem = malloc(memory_pool->block_size); // Fallback to standard malloc if pool is exhausted
             }
         }
@@ -308,7 +237,6 @@ void _free_memory_to_pool(memory_pool *memory_pool, void *ptr)
 
     if(std_cleanup)
     {
-        _metrics_inc_free();
         free(ptr); // Fallback to standard free if not from pool or pool is full
     }
 }
@@ -355,14 +283,12 @@ int _cleanup_memory_pool(memory_pool *pool)
     // pool_start_ptr holds the original malloc address; next_block_ptr advances
     // during allocation and must NOT be freed directly.
     if(pool->pool_start_ptr) {
-        _metrics_inc_free();
         free(pool->pool_start_ptr);
         pool->pool_start_ptr = NULL;
         pool->pool_end_ptr = NULL;
         pool->next_block_ptr = NULL;
     }
     if(pool->free_block_list) {
-        _metrics_inc_free();
         free(pool->free_block_list);
         pool->free_block_list = NULL;
     }

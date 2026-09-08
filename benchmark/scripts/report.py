@@ -175,18 +175,13 @@ def render_memory_diagnostics(scenarios: list[dict]) -> str:
 
     parts.append("<table>")
     parts.append(
-        "<thead><tr><th>Scenario</th><th>Peak RSS (KB)</th><th>RSS Delta (KB)</th><th>Allocator Calls (m/c/r/f)</th><th>Allocator Slow Path</th></tr></thead><tbody>"
+        "<thead><tr><th>Scenario</th><th>Peak RSS (KB)</th><th>RSS Delta (KB)</th></tr></thead><tbody>"
     )
     for row in scenarios:
-        calls = row.get("allocator_calls", {})
         parts.append("<tr>")
         parts.append(f"<td>{html.escape(str(row.get('test_id', '')))}</td>")
         parts.append(f"<td>{fmt_int(row.get('peak_rss_kb'))}</td>")
         parts.append(f"<td>{fmt_int(row.get('rss_delta_kb'))}</td>")
-        parts.append(
-            f"<td>{fmt_int(calls.get('malloc'))}/{fmt_int(calls.get('calloc'))}/{fmt_int(calls.get('realloc'))}/{fmt_int(calls.get('free'))}</td>"
-        )
-        parts.append(f"<td>{fmt_int(row.get('allocator_slow_path_count'))}</td>")
         parts.append("</tr>")
     parts.append("</tbody></table>")
     return "\n".join(parts)

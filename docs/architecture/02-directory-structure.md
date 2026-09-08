@@ -46,7 +46,6 @@ The distributed keystore uses a **layered, modular architecture** organized into
 |   |-- config_type_definitions.h
 |   |-- error_code_definitions.h
 |   |-- sucess_code_definitions.h
-|   |-- stats_type_definitions.h
 |   `-- background_task_manager_type_definitons.h
 |
 `-- utils/                         INTERNAL — cross-cutting infrastructure

@@ -44,6 +44,11 @@ See [docs/architecture/04-two-level-hash-table.md](./architecture/04-two-level-h
 
 **Note:** The `free_memory` pool flag is nearly always passed as `false` in caller code; only the memory manager itself uses `is_pool = true` internally via `_free_memory_to_pool`.
 
+**Concurrency:** The pool mutex is initialized and used only when
+`is_concurrency_enabled` is true. Single-threaded configurations keep pool
+allocation and reuse lock-free; concurrent configurations serialize pool
+metadata updates with the mutex.
+
 ---
 
 ### Dual-Seed MurmurHash3
@@ -73,6 +78,22 @@ Locks are never held simultaneously.
 - The `is_deleted` flag (checked under the node mutex) closes the use-after-free race in the window between rwlock release and node mutex acquisition.
 
 **Trade-off:** Requires careful reasoning about invariants and potential TOCTOU races. See [docs/architecture/07-concurrency-model.md](./architecture/07-concurrency-model.md) for full details.
+
+---
+
+### Atomic Sub-Bucket Counts
+
+**Decision:** `active_node_count` and `total_node_count` are C11 atomic
+counters. Updates use relaxed atomic operations, and resize checks load the
+total count atomically without extending the sub-bucket lock scope.
+
+**Rationale:** Resize checks and delete/insert bookkeeping can observe counts
+while other threads update them. Atomic counters avoid data races while the
+counter values remain advisory metadata rather than synchronization barriers.
+
+**Trade-off:** Relaxed ordering does not provide a global snapshot across
+multiple counters. Structural changes and node visibility continue to be
+controlled by the existing sub-bucket locks.
 
 ---
 

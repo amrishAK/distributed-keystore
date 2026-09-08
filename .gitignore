@@ -85,6 +85,7 @@ CMakeUserPresets.json
 # Editor and local tool state
 .vs/
 .idea/
+.copilot/
 
 # Legacy build and benchmark output
 benchmark/bin/

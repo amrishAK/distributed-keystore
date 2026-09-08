@@ -30,8 +30,8 @@ A high-performance, concurrent, in-memory key-value store written in C (C11). Fe
     - Stress-tested for thread safety and performance (120 threads × 150 keys, with p50/p99 latency tracking)
 - **Detailed Error Handling**
     - All functions return clear error codes (see [ERROR_CODES.md](./ERROR_CODES.md))
-- **Built-in Statistics**
-    - Runtime stats: key counts, memory use, operation counters, per-error-code counters
+- **Benchmark Diagnostics**
+    - Benchmark reports include throughput, latency, resize, memory, and correctness diagnostics
 - **Modular and Maintainable**
     - Clean separation of core logic, data structures, memory management, and tests
     - Easy to extend for new features or data types

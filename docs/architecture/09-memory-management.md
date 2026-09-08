@@ -182,14 +182,8 @@ When `is_concurrency_enabled = true`:
 | All pool operations (allocate, free) | `pool_lock` mutex |
 | Configuration read | Lock-free (immutable after init) |
 | Pool metadata updates | Protected by `pool_lock` |
-| Allocator metrics updates | C11 atomic counters |
 
 **Lock scope:** Minimal — only protects pool state, not node content.
-
-Allocator metric updates use relaxed C11 atomic operations and do not acquire
-`pool_lock`. `get_memory_allocator_metrics()` returns a race-free snapshot of
-the individual counters; counters may reflect slightly different instants when
-allocations continue concurrently. Reset has the same per-counter semantics.
 
 ---
 
