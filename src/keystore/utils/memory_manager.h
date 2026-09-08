@@ -35,16 +35,6 @@
 #include "type_definitions/config_type_definitions.h"
 #include "type_definitions/custom_type_definitions.h"
 
-typedef struct
-{
-	unsigned long malloc_calls;
-	unsigned long calloc_calls;
-	unsigned long realloc_calls;
-	unsigned long free_calls;
-	unsigned long slow_path_allocations;
-} memory_allocator_metrics;
-
-
 /**
  * @fn initialize_memory_manager
  * @brief Initializes the memory manager with the specified configuration.
@@ -130,8 +120,5 @@ void* reallocate_memory(void *ptr, size_t new_size);
  * @param is_pool Indicates whether the memory block was allocated from a pool.
  */
 void free_memory(void* ptr, bool is_pool);
-
-void reset_memory_allocator_metrics(void);
-memory_allocator_metrics get_memory_allocator_metrics(void);
 
 #endif // MEMORY_MANAGER_H

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdatomic.h>
 #include <pthread.h>
 
 #include "custom_type_definitions.h"
@@ -33,8 +34,8 @@
 typedef struct sub_hash_bucket
 {
     linked_list_node* linked_list_head;
-    unsigned int active_node_count;
-    unsigned int total_node_count;
+    atomic_uint active_node_count; // updated concurrently across threads without holding sub_hash_bucket_lock
+    atomic_uint total_node_count;  // updated concurrently across threads without holding sub_hash_bucket_lock
     bool is_initialized;
     bool is_concurrency_enabled;
     bool is_bloom_filter_enabled;

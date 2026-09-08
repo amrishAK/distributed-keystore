@@ -1,6 +1,6 @@
 # KeyStore Progress Memory
 
-**Version:** v1.0 | **Target:** June 2026 | **Status:** Feature-complete, OSS release in progress
+**Version:** v1.0 | **Target:** June 2026 | **Status:** Feature-complete, OSS release in progress | **Updated:** 2026-09-06
 
 ---
 
@@ -8,16 +8,16 @@
 
 | Category | Status | Notes |
 |----------|--------|-------|
-| **Core Functionality** | ✅ Complete | 11/20 items done; 9 remaining (v1.5+ features + config enhancements) |
-| **Open Source Release** | 🔄 In Progress | 4/15 items done; 11 remaining (docs, CI/CD, GitHub setup) |
+| **Core Functionality** | ✅ Complete | 12/20 items done; 8 remaining (v1.5+ features + config enhancements) |
+| **Open Source Release** | 🔄 In Progress | Release documentation and community setup items remain |
 | **Performance** | ✅ Validated | 4.3M ops/s native (2K threads), 0 Valgrind errors, Iteration 4 baseline established |
-| **Known Issues** | ⚠️ 3 Open | `key_hash == 0` bug, Windows portability, pre-allocation concern |
+| **Known Issues** | ⚠️ 2 Open, 1 Deferred | `key_hash == 0` bug; V2 cold-start key loss; per-node mutex redesign deferred |
 
 ---
 
 ## v1.0 Checklist (COMPACT)
 
-### Core Functionality (11/20 DONE)
+### Core Functionality (12/20 DONE)
 
 **Completed:**
 - [x] RWlock bucket concurrency + two-phase lock protocol
@@ -28,19 +28,20 @@
 - [x] Configurable tuning (bucket/sub-bucket sizes, chain thresholds, concurrency toggle)
 - [x] Stress test harness (2K threads × 2K keys, 8M ops)
 - [x] Valgrind clean (149 tests: 0 failures, 630 allocs/frees, 0 leaks)
+- [x] Bloom filter implementation and lookup integration (unit tests passing; benchmark impact not yet isolated)
 
 **Remaining (v1.0 codeline, v1.5+ priority):**
 - [ ] Memory pool refactor: extend to `data_node` (v1.5 blocker for 3-segment redesign)
-- [ ] Bloom filter: negative-path optimization (128-bit per sub_bucket, GET-miss elimination)
+- [x] Bloom filter: negative-path optimization (128-bit per sub_bucket for eligible chain lengths; benchmark impact not yet isolated)
 - [ ] Resize guard TOCTOU fix: replace `resizing_lock` mutex → `resize_guard` rwlock
 - [ ] Logging abstraction: structured levels, guard printf traces
 - [ ] Benchmark scaling: 3M and 5M staged runs
 - [ ] Config flags: `is_resizing_enabled` (embedded profile support)
-- [ ] CMake build: libkeystore.a target + portable build
+- [x] CMake build: libkeystore.a target + portable build
 - [ ] Multi-instance API: context struct (move g_* globals into opaque keystore_t*)
 - [ ] `key_hash == 0` bug fix (routing/buffer boundaries currently reject hash=0)
 
-### Open Source Release (4/15 DONE)
+### Open Source Release
 
 **Completed:**
 - [x] Apache 2.0 LICENSE (Copyright 2026 Amrish Arunachalam Kulasekaran)
@@ -54,22 +55,23 @@
 - [ ] CHANGELOG.md (Keep-A-Changelog v1.0.0 entry)
 - [ ] CODE_OF_CONDUCT.md
 - [ ] SECURITY.md (vulnerability report policy)
-- [ ] GitHub Actions CI (.github/workflows/ci.yml: build + tests + Valgrind)
+- [x] GitHub Actions CI (.github/workflows/build-and-validate.yml and reusable validation workflows)
 - [ ] GitHub templates (.github/ISSUE_TEMPLATE/, PR template)
-- [ ] Remove/guard printf traces (src/keystore)
-- [ ] ERROR_CODES.md completion audit
+- [x] Remove/guard printf traces (src/keystore) — ✅ Complete (production code is clean)
+- [x] ERROR_CODES.md completion audit — ✅ Complete
+- [x] Windows portability (portable_sleep_ms) — ✅ Complete (implemented in helper_functions.h)
 - [ ] GitHub public + topics (c, keystore, embedded, concurrent, hash-table)
 - [ ] Tag v1.0.0 release
 - [ ] Release announcement / blog post
 
 ---
 
-## Known Issues (3 OPEN)
+## Known Issues (2 OPEN, 1 DEFERRED)
 
 | Issue | Severity | Scope | Status | Mitigation |
 |-------|----------|-------|--------|-----------|
 | `key_hash == 0` rejection | 🔴 Correctness | routing/buffer boundaries | Open | Must fix before v1.0 tag |
-| Windows portability | 🟡 Platform | `usleep(100)` in resize paths | Open | Add `portable_sleep_ms()` wrapper |
+| `ST2-CW-001` cold-start key loss | 🔴 Correctness | V2 benchmark cold-start path | Open | 10,066 missing keys across all 5 repetitions; isolate resize/background-worker path before release |
 | Per-node mutex design | 🔵 Performance | v1.5 redesign blocker | Deferred | 3-segment + atomic swap in v1.5 |
 
 ---
@@ -152,6 +154,14 @@
 
 **Status:** ✅ Validated
 
+### Latest Benchmark Run Status (2026-07-06, Run 2)
+
+- **Bloom-enabled:** Multi-thread scenarios use `max_chain_length = 15`, which enables the 128-bit per-sub-bucket Bloom filter.
+- **Bloom-disabled:** Single-thread baseline scenarios use `max_chain_length = 8`; resize-stress scenarios use `max_chain_length = 2`.
+- **Interpretation:** The latest report is a mixed-configuration run, not an isolated Bloom-filter A/B comparison.
+- **Release status:** ❌ Under review. `ST2-CW-001` failed all five repetitions with 10,066 missing keys; the cold-start/resize path must be diagnosed before release.
+- **Next benchmark:** Run matched Bloom-enabled and Bloom-disabled negative-lookup workloads after the correctness issue is fixed.
+
 ### Known Implementation Deviations from Plan
 
 1. **Naming:** V2 suite uses `ST2-*` and `MT2-*` prefixes (not `ST-*` and `MT-*` from plan)
@@ -177,6 +187,13 @@
 - Embedded profile (is_concurrency_enabled + is_resizing_enabled flags → zero-lock, deterministic)
 - Embedded benchmarking (single-threaded no-resize profile validation)
 - SCAN / prefix-scan API (full-table iteration)
+
+### Immediate Staged Optimization Plan (not yet implemented)
+- Step 1: Localize the ownership change to `data_node_handler` / `data_handler`; convert incoming value payloads into an immutable value packet before they are published into the node.
+- Step 2: Validate ownership semantics and lifecycle with unit tests: object creation once, mutation boundary clear, delete path deterministic, no stale pointer reuse.
+- Step 3: If tests remain stable, add fixed/preallocated data-node storage and reuse rather than full per-write allocation.
+- Step 4: Only after correctness and benchmark validation, consider atomic swap / pointer publication for the value payload; ref-counting remains a later design if the data flow still needs it.
+- Decision gate: keep the first iteration narrow and correctness-first; do not combine ref-counting, atomic publication, and preallocation in the same step.
 
 ### v2.0 (Persistence & Distribution Layer)
 - Write-Ahead Log (WAL)
@@ -257,10 +274,10 @@
   - ✅ **Strengths:** Modular architecture, memory-safe (0 Valgrind errors), 90%+ test coverage, 4.3M ops/s throughput, production-grade documentation (14 architecture subsections, comprehensive API.md, design rationale for all major decisions)
   - ⚠️ **Critical blocker:** `key_hash == 0` rejection in routing functions (correctness bug; affects tiny fraction of keys but must fix before v1.0 tag)
   - ⚠️ **OSS gaps:** 11 items pending (CONTRIBUTING.md, CHANGELOG.md, SECURITY.md, CODE_OF_CONDUCT.md, examples/main.c, GitHub CI, GitHub templates)
-  - 🟡 **Platform gap:** Windows portability (`usleep()` → `portable_sleep_ms()` wrapper needed)
-  - 🟡 **Performance deferred:** Bloom filter integration (v1.1), memory pool extension to data_node (v1.5)
+  - ✅ **Platform gap resolved:** Windows portability was later addressed with the `portable_sleep_ms()` wrapper.
+  - 🟡 **Performance deferred:** Bloom filter A/B benchmarking, memory pool extension to data_node (v1.5)
 - **Generated:** [docs/FINAL_REVIEW_2026-07-05.md](./FINAL_REVIEW_2026-07-05.md) — comprehensive audit with action items, effort estimates, release checklist
-- **Recommendation:** Fix P1 items (correctness bug + CONTRIBUTING/CHANGELOG/examples), then tag v1.0.0; P2/P3 items defer to v1.1+
+- **Recommendation:** Fix the `key_hash == 0` bug and the V2 cold-start key-loss blocker, complete the essential OSS files, then tag v1.0.0; Bloom performance A/B validation and other P2/P3 items can follow.
 
 ---
 
@@ -270,8 +287,8 @@
 |----------|------|--------|-------------|
 | 🔴 **P1** | Fix `key_hash == 0` bug | Correctness blocker | 2-4h |
 | 🔴 **P1** | CONTRIBUTING.md + CHANGELOG.md | OSS release blocking | 4-6h |
-| 🟡 **P2** | Replace resizing_lock → resize_guard (rwlock TOCTOU fix) | v1.1 robustness | 6-8h |
-| 🟡 **P2** | Bloom filter integration (GET-miss acceleration) | Performance opt | 8-12h |
+| 🟡 **P2** | Consolidate architecture docs (11→5 files) | Doc clarity | 3-4h |
+| 🟡 **P2** | Replace resizing_lock → resize_guard | v1.1 robustness | 6-8h |
+| 🟡 **P2** | Bloom filter A/B benchmark validation | Quantify negative-lookup benefit | 4-6h |
 | 🔵 **P3** | Memory pool refactor (extend to data_node) | v1.5 prereq | 12-16h |
 | 🔵 **P3** | 3M/5M staged benchmark runs | Scaling validation | 4-6h |
-| 🔵 **P3** | Windows portability (portable_sleep_ms) | Platform support | 2-3h |

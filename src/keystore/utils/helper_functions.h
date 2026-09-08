@@ -20,6 +20,13 @@ int is_power_of_two(unsigned int bucket_size);
 void portable_sleep_ms(unsigned long ms);
 
 /**
+ * @fn portable_sleep_us
+ * @brief Cross-platform function to sleep for a specified number of microseconds.
+ * @param microseconds The number of microseconds to sleep.
+ */
+void portable_sleep_us(unsigned long microseconds);
+
+/**
  * @fn generate_hash_seed
  * @brief Generates a hash seed using system time.
  * @return uint64_t Returns a 64-bit hash seed.

@@ -5,6 +5,7 @@
 #include "type_definitions/custom_type_definitions.h"
 #include "type_definitions/config_type_definitions.h"
 #include "type_definitions/error_code_definitions.h"
+#include "utils/memory_manager.h"
 #include <string.h>
 #include <stdlib.h>
 

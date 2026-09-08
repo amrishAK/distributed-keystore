@@ -1,0 +1,51 @@
+name: benchmark
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: Linux GCC benchmarks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up toolchain
+        uses: ./.github/actions/setup-toolchain
+
+      - name: Configure and build benchmarks
+        run: |
+          cmake --preset linux-gcc \
+            -DCMAKE_C_COMPILER=gcc-13 \
+            -DCMAKE_CXX_COMPILER=g++-13 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_UNIT_TESTS=OFF \
+            -DBUILD_INTEGRATION_TESTS=OFF \
+            -DBUILD_BENCHMARKS=ON
+          cmake --build --preset linux-gcc --target benchmarks --parallel
+
+      - name: Run benchmarks
+        run: |
+          mkdir -p build/linux-gcc/benchmark-results
+          cmake --build --preset linux-gcc --target benchmark \
+            2>&1 | tee build/linux-gcc/benchmark-results/benchmark.log
+
+      - name: Validate performance targets
+        run: >-
+          python3 benchmark/scripts/validate.py
+          build/linux-gcc/benchmark-results/single-thread/results.jsonl
+          build/linux-gcc/benchmark-results/multi-thread/results.jsonl
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: benchmark-results-linux-gcc
+          path: build/linux-gcc/benchmark-results/
+          if-no-files-found: error
+          retention-days: 30

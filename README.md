@@ -30,8 +30,8 @@ A high-performance, concurrent, in-memory key-value store written in C (C11). Fe
     - Stress-tested for thread safety and performance (120 threads × 150 keys, with p50/p99 latency tracking)
 - **Detailed Error Handling**
     - All functions return clear error codes (see [ERROR_CODES.md](./ERROR_CODES.md))
-- **Built-in Statistics**
-    - Runtime stats: key counts, memory use, operation counters, per-error-code counters
+- **Benchmark Diagnostics**
+    - Benchmark reports include throughput, latency, resize, memory, and correctness diagnostics
 - **Modular and Maintainable**
     - Clean separation of core logic, data structures, memory management, and tests
     - Easy to extend for new features or data types
@@ -41,73 +41,67 @@ A high-performance, concurrent, in-memory key-value store written in C (C11). Fe
 
 ## Architecture Overview
 
-KeyStore is built from modular components:
+KeyStore is built from modular layers: an entry API → top-level hash table → sub-tables → collision chains. All operations use a two-phase lock protocol (Phase 1: traverse under RW-lock, Phase 2: modify under node mutex) enabling parallel updates on different nodes within the same bucket.
 
-- **Hash Table** — Top-level structure, routes keys to hash buckets via MurmurHash3 (64-bit, dual-seed).
-- **Hash Buckets** — Each points to a sub-hash table. Resizing uses snapshot + chase buffer for safe migration.
-- **Sub-Hash Tables** — Further divide the key space, reducing collisions. Resize triggered when chain length exceeds threshold.
-- **Sub-Hash Buckets** — Linked lists of data nodes, protected by per-bucket RW-lock.
-- **Data Nodes** — Store key-value pairs with soft-delete flag and per-node mutex for value access.
-- **Chase Buffer** — Doubly-linked list (spinlock-protected) recording all writes during resize. Background worker migrates these to the new table.
-- **Memory Pool** — Pre-allocated arena for linked list nodes; falls back to malloc if exhausted.
+**Key Design Principles:**
+- **Two-level hashing** with independent seeds improves key distribution
+- **Two-phase locking** enables intra-bucket parallelism: Phase 2 (node update) can run in parallel across different nodes
+- **Soft-delete semantics** with lazy physical cleanup reduce latency under high concurrency
+- **Chase buffer** with background worker ensures safe concurrent resizing with zero data loss
 
-**Operation Phases (Lock-Free Concurrency):**
-- Phase 1 (RW-lock): acquire → traverse list → capture node → release
-- Phase 2 (node mutex): acquire → check `is_deleted` → read/write/delete → release
-
-Phase 2 can run in parallel for different nodes, enabling intra-bucket concurrency. The `is_deleted` flag closes the use-after-free window between phase releases.
-
-**For detailed architecture documentation, see:**
-- [docs/architecture/](./docs/architecture/) — Subsystem breakdown, data flow, concurrency model, memory management
+**For Detailed Information:**
+- [docs/architecture/01-overview.md](./docs/architecture/01-overview.md) — System shape and component responsibilities
+- [docs/architecture/03-data-flow.md](./docs/architecture/03-data-flow.md) — How requests flow through the system
+- [docs/architecture/07-concurrency-model.md](./docs/architecture/07-concurrency-model.md) — Lock hierarchy and two-phase protocol
 - [docs/DESIGN_DECISIONS.md](./docs/DESIGN_DECISIONS.md) — Design rationale and known limitations
+
 ## Building and Testing
 
-This project uses a Makefile (in `tests/for_c/`) for building and testing. Ensure you have `gcc` and `make` installed, and are on a POSIX-compatible system (Linux, macOS, or Windows with MinGW).
+This project uses **CMake 3.20+** as the primary build system. For full build instructions, see [BUILD.md](./docs/BUILD.md) and [QUICK_REFERENCE.md](./QUICK_REFERENCE.md).
 
-### Run Unit Tests
+### Quick Start
 
-```sh
-make test
+```bash
+# 1. Create build directory
+mkdir build && cd build
+
+# 2. Configure (all features enabled)
+cmake -DBUILD_UNIT_TESTS=ON -DBUILD_INTEGRATION_TESTS=ON -DBUILD_BENCHMARKS=ON ..
+
+# 3. Build everything
+cmake --build .
+
+# 4. Run tests
+cmake --build . --target test
 ```
 
-Builds all keystore sources and the Unity test runner, then executes the unit test suite.
+### Key Build Targets
 
-### Run Unit Tests Under Valgrind
+| Command | Purpose |
+|---------|---------|
+| `cmake --build . --target test` | Build and run unit tests |
+| `cmake --build . --target run-concurrency-test` | Run integration/stress test (2K threads × 2K keys) |
+| `cmake --build . --target benchmark` | Build and run all benchmarks |
+| `cmake --build . --target coverage-simple` | Generate code coverage reports |
 
-```sh
-make valgrind-test
-```
+### Platform Notes
 
-Builds the test binary without coverage instrumentation and runs it under Valgrind with `--leak-check=full --track-origins=yes`.
+- **Linux/macOS:** Fully supported with GCC/Clang
+- **Windows WSL2:** Recommended (native Linux environment)
+- **Windows MinGW:** Supported with pthread library
+- **Windows MSVC:** Not supported (requires POSIX pthread APIs)
 
-### Run Concurrency Stress Test
-
-```sh
-make run-concurrency-test
-```
-
-Compiles and runs the concurrency stress test in `integration_test/concurrency_test.c`. The test spawns 2,000 threads × 2,000 keys (8M total ops) and reports missing keys, p50/p99 latencies, throughput, and race errors after concurrent set/get operations.
-
-### Run Concurrency Test Under Valgrind
-
-```sh
-make run-ct-valgrind
-```
-
-### Coverage
-
-```sh
-make coverage          # generates .gcov files; set LCOV=1 for HTML report
-make coverage-simple   # quick .gcov files only
-```
+For detailed build configuration, compiler options, and troubleshooting, see **[BUILD.md](./docs/BUILD.md)**.
 
 ### Clean
 
-```sh
-make clean
+Delete the selected CMake build directory and configure it again when a clean build is needed. For example:
+
+```powershell
+Remove-Item -Recurse -Force build\windows-mingw
 ```
 
-Run `make help` to see all available targets.
+See [QUICK_REFERENCE.md](./QUICK_REFERENCE.md) for preset-specific cleanup commands.
 
 ## Benchmarking
 
@@ -173,15 +167,14 @@ make multi-run-high
 
 ### Performance Baselines (v1.0)
 
-| Scenario | Throughput | Config | Status |
-|----------|-----------|--------|--------|
-| **Single-threaded 50/50 SET:GET** | 2–2.5M ops/sec | bucket=256, prealloc=0.5 | ✅ Baseline |
-| **Multi-threaded 32 threads 50/50** | ≥28M ops/sec | bucket=1024, prealloc=0.5 | ✅ Target |
-| **Native stress (2K threads, 8M ops)** | **4.3M ops/sec** | bucket=1024, max_chain=15 | ✅ Achieved |
-| **Valgrind clean** | 14K ops/sec (304× overhead) | All tests | ✅ Verified |
-| **Memory integrity** | 0 leaks, 0 races | 24M+ allocs under concurrency | ✅ Verified |
+| Scenario | Throughput | Notes |
+|----------|-----------|-------|
+| **Single-threaded** | 2–2.5M ops/sec | 50/50 SET:GET, baseline config |
+| **Multi-threaded (32 threads)** | ≥28M ops/sec | Efficient scaling target |
+| **Native stress test** | **4.3M ops/sec** | 2K threads × 2K keys (8M ops, 7 resizes, 0 data loss) |
+| **Valgrind clean** | 14K ops/sec | 304× overhead; 0 leaks, 0 races detected |
 
-**Next Steps:** Execute full benchmark suite → analyze scaling curves → validate v1.0 performance targets.
+See [docs/progress.md](./docs/progress.md) for detailed benchmark results and [benchmark/docs/BENCHMARK.md](./benchmark/docs/BENCHMARK.md) for the complete benchmark specification.
 
 ## Example Output
 
@@ -241,47 +234,27 @@ See [docs/DESIGN_DECISIONS.md](./docs/DESIGN_DECISIONS.md) for a detailed discus
 - **Two-phase lock protocol** — intra-bucket parallelism via phase release
 - **Known limitations** — `key_hash == 0` rejection, no persistence, platform specifics, etc.
 
-## v1.0 Checklist
-
-- [x] Two-level hash table with bucket RW-locks
-- [x] Per-data-node mutex for value updates
-- [x] Fine-grained spinlock chase buffer during resize
-- [x] Full CRUD (create/read/update/delete with soft-delete)
-- [x] Memory pool for linked list nodes
-- [x] Background resize worker (doubles sub-table bucket size)
-- [x] Stress test: 2,000 threads × 2,000 keys — 8M ops, 4.3M ops/s, 7 resizes, 0 data loss
-- [x] Unity unit tests across all modules
-- [x] Valgrind clean confirmed (630/630 allocs/frees, 0 leaks, 0 errors — unit; 24M/24M — integration)
-- [ ] `printf` debug output removed / guarded
-- [ ] `key_hash == 0` guard reviewed (edge case for some key strings)
-- [x] Generate 2 hash for hash table and sub hash table to improve the distribution
-- [ ] User finer locks for resizing
-- [ ] Refactor back ground task manager with lazy memory pool
-- [ ] Refactor Memory pool
-- [ ] Fast Key lookup mechanism using bloom filter
-- [ ] Add Logs using defined functions
-- [ ] README.md finalized (updated 2026-03-17 with architecture, concurrency, error codes, checklist)
-- [ ] API.md complete (reviewed 2026-03-16)
-- [ ] ERROR_CODES.md complete (reviewed 2026-03-16)
-- [ ] Tagged v1.0.0
-
 ## Documentation & Resources
 
 **Core Documentation:**
-- [API.md](./API.md) — Public API reference (all exported functions)
+- [API.md](./API.md) — Public API reference with usage examples and error codes
 - [ERROR_CODES.md](./ERROR_CODES.md) — Complete error and success code reference
-- [docs/architecture/](./docs/architecture/) — Deep dives into design, data flow, concurrency, memory management
-  - [01-overview.md](./docs/architecture/01-overview.md) — Architecture summary
-  - [03-data-flow.md](./docs/architecture/03-data-flow.md) — How operations flow through the system
-  - [07-concurrency-model.md](./docs/architecture/07-concurrency-model.md) — Two-phase lock protocol, invariants
-  - [09-memory-management.md](./docs/architecture/09-memory-management.md) — Memory pool, ownership, lifetime rules
-  - [14-design-decisions-trade-offs.md](./docs/architecture/14-design-decisions-trade-offs.md) — Rationale for key choices
+- [QUICK_REFERENCE.md](./QUICK_REFERENCE.md) — Build and test quick-start
+- [docs/BUILD.md](./docs/BUILD.md) — Detailed build configuration and troubleshooting
+- [docs/DESIGN_DECISIONS.md](./docs/DESIGN_DECISIONS.md) — Design rationale, tradeoffs, known limitations
+
+**Architecture & Deep Dives:**
+- [docs/architecture/](./docs/architecture/) — Modular architecture documentation:
+  - [01-overview.md](./docs/architecture/01-overview.md) — System overview
+  - [03-data-flow.md](./docs/architecture/03-data-flow.md) — Request flow through the system
+  - [07-concurrency-model.md](./docs/architecture/07-concurrency-model.md) — Lock hierarchy and two-phase protocol
+  - [09-memory-management.md](./docs/architecture/09-memory-management.md) — Memory pools and allocation
 
 **Project Tracking:**
-- [docs/progress.md](./docs/progress.md) — v1.0 checklist, known issues, roadmap for v1.5+
-- [docs/DESIGN_DECISIONS.md](./docs/DESIGN_DECISIONS.md) — Known limitations and caveats with suggested mitigations
+- [docs/progress.md](./docs/progress.md) — v1.0 checklist, roadmap, known issues
+- [benchmark/docs/BENCHMARK.md](./benchmark/docs/BENCHMARK.md) — Complete benchmark specification
 
-**Usage:**
+**Examples:**
 - [examples/main.c](./examples/main.c) — Simple usage example
 
 ## License

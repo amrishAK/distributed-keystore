@@ -60,5 +60,34 @@ dkms.conf
 *.gcno
 *.gcovrc
 
-**/bin/
-**/.result/
+# CMake build artifacts
+build/
+build-all/
+build-cmake/
+build-cmake-tests/
+build-test/
+build-test-wsl/
+build-validate-*/
+cmake-build-*/
+.cmake-review*/
+CMakeCache.txt
+CMakeFiles/
+Testing/
+compile_commands.json
+CMakeUserPresets.json
+
+# Python cache artifacts
+.venv/
+*.pyc
+**/__pycache__/
+.pytest_cache/
+
+# Editor and local tool state
+.vs/
+.idea/
+.copilot/
+
+# Legacy build and benchmark output
+benchmark/bin/
+tests/for_c/bin/
+benchmark/.result/
