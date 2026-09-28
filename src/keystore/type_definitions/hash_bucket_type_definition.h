@@ -106,7 +106,7 @@ typedef struct {
  *   - node_count: Number of nodes in the sub-hash-table.
  *   - pending_list_head: Head of the pending list for nodes added during resizing.
  *   - is_resizing: Flag to indicate if resizing is in progress.
- *   - resizing_lock: Spin lock for synchronizing resizing operations.
+ *   - resizing_lock: RW lock; normal ops hold it shared, resize start/finalize and resize-path ops hold it exclusive.
  *   - is_initialized: Flag to indicate if the pool is initialized.
  */
 typedef struct 
@@ -114,7 +114,7 @@ typedef struct
     sub_hash_table_memory_pool* sub_hash_table_ptr;
     sub_hash_table_memory_pool* snapshot_sub_hash_table_ptr;
     resizing_buffer* resizing_buffer_ptr;
-    pthread_mutex_t  resizing_lock;
+    pthread_rwlock_t resizing_lock;
     unsigned int node_count;
     bool is_resizing;
     bool is_initialized;

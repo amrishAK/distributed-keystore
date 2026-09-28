@@ -24,6 +24,7 @@ int _update_node_while_resizing(hash_bucket* hash_bucket_ptr, composite_key_hash
 int initialize_hash_bucket_resizing(hash_bucket* hash_bucket_ptr)
 {
     if (hash_bucket_ptr == NULL) return ERR_INVALID_ARGUMENT; // Error handling: invalid input
+    if (hash_bucket_ptr->is_resizing) return SUCCESS; // Another thread already started this resize
 
     hash_bucket_ptr->snapshot_sub_hash_table_ptr = NULL;
     hash_bucket_ptr->is_resizing = true;
