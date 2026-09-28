@@ -1,0 +1,52 @@
+name: Set up build toolchain
+description: Install the Linux or Windows toolchain used by project workflows
+
+inputs:
+  compiler:
+    description: Linux compiler set to verify (gcc, clang, or both)
+    required: false
+    default: gcc
+
+runs:
+  using: composite
+  steps:
+    - name: Verify Linux toolchain
+      if: runner.os == 'Linux'
+      shell: bash
+      env:
+        COMPILER: ${{ inputs.compiler }}
+      run: |
+        case "$COMPILER" in
+          gcc)
+            commands=(gcc-13 g++-13 gcov-13)
+            ;;
+          clang)
+            commands=(clang-18 clang++-18)
+            ;;
+          both)
+            commands=(gcc-13 g++-13 gcov-13 clang-18 clang++-18)
+            ;;
+          *)
+            echo "Unsupported compiler selection: $COMPILER" >&2
+            exit 1
+            ;;
+        esac
+
+        commands+=(cmake python3)
+        for command_name in "${commands[@]}"; do
+          command -v "$command_name" >/dev/null || {
+            echo "Required tool is unavailable: $command_name" >&2
+            exit 1
+          }
+        done
+
+    - name: Install Windows MinGW toolchain
+      if: runner.os == 'Windows'
+      uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884 # v2
+      with:
+        msystem: MINGW64
+        update: false
+        install: >-
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-cmake
+          mingw-w64-x86_64-make

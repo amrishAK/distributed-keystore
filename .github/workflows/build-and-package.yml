@@ -1,0 +1,205 @@
+name: build-and-package
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (for example, 1.0.0 or 1.0.0-rc.1)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-and-package-release
+  cancel-in-progress: false
+
+jobs:
+  release-metadata:
+    name: Validate release metadata
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine and validate version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Releases must be dispatched from the main branch, not $GITHUB_REF" >&2
+            exit 1
+          fi
+
+          version="${INPUT_VERSION#v}"
+          tag="v${version}"
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]; then
+            echo "Invalid release version: $version" >&2
+            exit 1
+          fi
+
+          cmake -S . -B build/release-metadata \
+            -DBUILD_UNIT_TESTS=OFF \
+            -DBUILD_INTEGRATION_TESTS=OFF \
+            -DBUILD_BENCHMARKS=OFF
+          declared_version="$(cmake -N -LA build/release-metadata \
+            | sed -n 's/^DISTRIBUTED_KEYSTORE_VERSION:STRING=//p')"
+          if [[ "$version" != "$declared_version" ]]; then
+            echo "Release version $version does not match repository version $declared_version" >&2
+            exit 1
+          fi
+
+          if git rev-parse --verify --quiet "refs/tags/${tag}"; then
+            echo "Release tag already exists: $tag" >&2
+            exit 1
+          fi
+
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+          printf 'Packaging version %s from commit %s\n' "$version" "$GITHUB_SHA"
+
+  build-and-test:
+    needs: release-metadata
+    uses: ./.github/workflows/build-validation.yml
+
+  benchmark:
+    needs: release-metadata
+    uses: ./.github/workflows/benchmark.yml
+
+  package:
+    needs: [release-metadata, build-and-test, benchmark]
+    name: Create release assets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up toolchain
+        uses: ./.github/actions/setup-toolchain
+        with:
+          compiler: both
+
+      - name: Build and stage GCC package
+        env:
+          VERSION: ${{ needs.release-metadata.outputs.version }}
+        run: |
+          package_name="distributed-keystore-${VERSION}-linux-gcc-x64"
+          cmake_version="${VERSION%%-*}"
+          cmake -S . -B build/package-gcc \
+            -DDISTRIBUTED_KEYSTORE_VERSION="$VERSION" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=gcc-13 \
+            -DCMAKE_CXX_COMPILER=g++-13 \
+            -DBUILD_UNIT_TESTS=ON \
+            -DBUILD_INTEGRATION_TESTS=ON \
+            -DBUILD_BENCHMARKS=OFF \
+            -DBUILD_COVERAGE=OFF
+          cmake --build build/package-gcc --parallel
+          ctest --test-dir build/package-gcc --output-on-failure
+          cmake --install build/package-gcc --prefix "stage/${package_name}"
+          cmake -S build-system/tests/package-consumer -B build/package-consumer-gcc \
+            -DDISTRIBUTED_KEYSTORE_VERSION="$cmake_version" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=gcc-13 \
+            -DCMAKE_PREFIX_PATH="$PWD/stage/${package_name}"
+          cmake --build build/package-consumer-gcc --parallel
+          ./build/package-consumer-gcc/package_consumer
+          tar -czf "${package_name}.tar.gz" -C stage "$package_name"
+
+      - name: Build and stage Clang package
+        env:
+          VERSION: ${{ needs.release-metadata.outputs.version }}
+        run: |
+          package_name="distributed-keystore-${VERSION}-linux-clang-x64"
+          cmake_version="${VERSION%%-*}"
+          cmake -S . -B build/package-clang \
+            -DDISTRIBUTED_KEYSTORE_VERSION="$VERSION" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang-18 \
+            -DCMAKE_CXX_COMPILER=clang++-18 \
+            -DBUILD_UNIT_TESTS=ON \
+            -DBUILD_INTEGRATION_TESTS=ON \
+            -DBUILD_BENCHMARKS=OFF \
+            -DBUILD_COVERAGE=OFF
+          cmake --build build/package-clang --parallel
+          ctest --test-dir build/package-clang --output-on-failure
+          cmake --install build/package-clang --prefix "stage/${package_name}"
+          cmake -S build-system/tests/package-consumer -B build/package-consumer-clang \
+            -DDISTRIBUTED_KEYSTORE_VERSION="$cmake_version" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang-18 \
+            -DCMAKE_PREFIX_PATH="$PWD/stage/${package_name}"
+          cmake --build build/package-consumer-clang --parallel
+          ./build/package-consumer-clang/package_consumer
+          tar -czf "${package_name}.tar.gz" -C stage "$package_name"
+
+      - name: Create source package and checksums
+        env:
+          VERSION: ${{ needs.release-metadata.outputs.version }}
+        run: |
+          source_name="distributed-keystore-${VERSION}-source"
+          git archive \
+            --format=tar.gz \
+            --prefix="${source_name}/" \
+            --output="${source_name}.tar.gz" \
+            HEAD
+          sha256sum distributed-keystore-*.tar.gz > SHA256SUMS
+
+      - name: Upload Release test logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-test-logs-${{ needs.release-metadata.outputs.version }}
+          path: |
+            build/package-gcc/Testing/Temporary/
+            build/package-clang/Testing/Temporary/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-assets-${{ needs.release-metadata.outputs.version }}
+          path: |
+            distributed-keystore-*.tar.gz
+            SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    needs: [release-metadata, package]
+    name: Publish validated release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-assets-${{ needs.release-metadata.outputs.version }}
+          path: release-assets
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.release-metadata.outputs.version }}
+        run: |
+          tag="v${VERSION}"
+          release_flags=()
+          if [[ "$VERSION" == *-* ]]; then
+            release_flags+=(--prerelease)
+          fi
+          gh release create "$tag" release-assets/* "${release_flags[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "distributed-keystore ${VERSION}" \
+            --generate-notes

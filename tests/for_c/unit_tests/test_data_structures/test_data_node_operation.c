@@ -182,14 +182,6 @@ void test_edit_data_node_value_zero_value_size_on_nonempty_node(void) {
     delete_data_node(node);
 }
 
-void test_error_code_counters_increment_on_failure(void) {
-    extern data_node_operation_stats g_data_node_operation_counters;
-    memset(&g_data_node_operation_counters, 0, sizeof(data_node_operation_stats));
-    create_new_data_node(dummy_hash, NULL, false, NULL); // Should return ERR_INVALID_ARGUMENT
-    int idx = -ERR_INVALID_ARGUMENT;
-    TEST_ASSERT_EQUAL(1, g_data_node_operation_counters.error_code_counters[idx]);
-}
-
 void test_soft_delete_and_delete_idempotency(void) {
     key_value_pair kv = { .key = "abc", .value = (unsigned char*)"val", .value_size = 4 };
     data_node *node = NULL;
@@ -211,26 +203,6 @@ void test_soft_delete_and_delete_idempotency(void) {
 // Allocation and reallocation failure tests would require dependency injection or linker tricks for malloc/free
 // For now, we skip these unless a mock memory manager is available
 
-void test_operation_counters_increment_on_success_and_failure(void) {
-    extern data_node_operation_stats g_data_node_operation_counters;
-    memset(&g_data_node_operation_counters, 0, sizeof(data_node_operation_stats));
-    key_value_pair kv = { .key = "abc", .value = (unsigned char*)"val", .value_size = 4 };
-    data_node *node = NULL;
-    create_new_data_node(dummy_hash, &kv, false, &node);
-    edit_data_node_value(node, &kv);
-    // read_data_node_value allocates kv.key and kv.value, must free after
-    read_data_node_value(node, &kv);
-    if (kv.key) free_memory(kv.key, false);
-    if (kv.value) free_memory(kv.value, false);
-    soft_delete_data_node(node);
-    delete_data_node(node);
-    TEST_ASSERT_EQUAL(1, g_data_node_operation_counters.successful_create_operations);
-    TEST_ASSERT_EQUAL(1, g_data_node_operation_counters.successful_update_operations);
-    TEST_ASSERT_EQUAL(1, g_data_node_operation_counters.successful_read_operations);
-    TEST_ASSERT_EQUAL(1, g_data_node_operation_counters.successful_soft_delete_operations);
-    TEST_ASSERT_EQUAL(1, g_data_node_operation_counters.successful_delete_operations);
-}
-
 int test_data_node_operations_main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_create_new_data_node_valid_input_returns_success);
@@ -249,11 +221,9 @@ int test_data_node_operations_main(void) {
     RUN_TEST(test_delete_data_node_null_pointer_noop);
     RUN_TEST(test_soft_delete_data_node_sets_flag);
     RUN_TEST(test_soft_delete_data_node_null_pointer_returns_error);
-    RUN_TEST(test_operation_counters_increment_on_success_and_failure);
     RUN_TEST(test_create_new_data_node_concurrency_enabled);
     RUN_TEST(test_create_new_data_node_zero_value_size);
     RUN_TEST(test_edit_data_node_value_zero_value_size_on_nonempty_node);
-    RUN_TEST(test_error_code_counters_increment_on_failure);
     RUN_TEST(test_soft_delete_and_delete_idempotency);
     return UNITY_END();
 }

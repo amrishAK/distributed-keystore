@@ -151,7 +151,7 @@ That shape gives the project three useful properties:
 
 | Component | Role in the system | Details live in |
 |---|---|---|
-| Public API | Validates caller input, computes routing hashes, and exposes the CRUD surface | [03-data-flow.md](03-data-flow.md), [13-public-api-surface.md](13-public-api-surface.md) |
+| Public API | Validates caller input, computes routing hashes, and exposes the CRUD surface | [03-data-flow.md](03-data-flow.md), [API.md](../../API.md) |
 | Top-level hash table | Partitions the keyspace into independently managed buckets | [04-two-level-hash-table.md](04-two-level-hash-table.md) |
 | Bucket | Owns one sub-hash table and acts as the boundary for resize coordination | [04-two-level-hash-table.md](04-two-level-hash-table.md), [08-dynamic-resizing.md](08-dynamic-resizing.md) |
 | Sub-hash table and sub-buckets | Hold the actual collision paths and per-partition lookup state | [05-data-structures.md](05-data-structures.md) |
@@ -176,11 +176,11 @@ Several constraints are important at the overview level because they shape every
 
 | Boundary | Current state | Follow-up detail |
 |---|---|---|
-| Deployment model | Single process, single in-memory keystore instance | [14-design-decisions-trade-offs.md](14-design-decisions-trade-offs.md) |
+| Deployment model | Single process, single in-memory keystore instance | [DESIGN_DECISIONS.md](../DESIGN_DECISIONS.md) |
 | Object lifetime | Global initialization and teardown govern the entire store | [09-memory-management.md](09-memory-management.md) |
 | Concurrency model | Fine-grained synchronization is optional and configuration-driven | [07-concurrency-model.md](07-concurrency-model.md) |
-| Durability | No WAL, snapshots, or crash recovery in the current implementation | [14-design-decisions-trade-offs.md](14-design-decisions-trade-offs.md) |
-| Distribution | No network protocol, replication, or consensus layer yet | [14-design-decisions-trade-offs.md](14-design-decisions-trade-offs.md) |
+| Durability | No WAL, snapshots, or crash recovery in the current implementation | [DESIGN_DECISIONS.md](../DESIGN_DECISIONS.md) |
+| Distribution | No network protocol, replication, or consensus layer yet | [DESIGN_DECISIONS.md](../DESIGN_DECISIONS.md) |
 
 ## Process Model
 
@@ -200,4 +200,4 @@ Use the rest of this architecture set in the same order many open-source project
 2. Read [03-data-flow.md](03-data-flow.md) for request lifecycle walkthroughs.
 3. Read [04-two-level-hash-table.md](04-two-level-hash-table.md) and [05-data-structures.md](05-data-structures.md) for the storage layout.
 4. Read [07-concurrency-model.md](07-concurrency-model.md) and [08-dynamic-resizing.md](08-dynamic-resizing.md) for the behavior that dominates correctness under load.
-5. Read [09-memory-management.md](09-memory-management.md), [10-background-task-manager.md](10-background-task-manager.md), and [14-design-decisions-trade-offs.md](14-design-decisions-trade-offs.md) for lifecycle, maintenance work, and design rationale.
+5. Read [09-memory-management.md](09-memory-management.md), [10-background-task-manager.md](10-background-task-manager.md), and [DESIGN_DECISIONS.md](../DESIGN_DECISIONS.md) for lifecycle, maintenance work, and design rationale.

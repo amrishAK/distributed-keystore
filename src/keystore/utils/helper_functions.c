@@ -2,11 +2,10 @@
 #include "helper_functions.h"
 #include "type_definitions/error_code_definitions.h"
 
+#include <time.h>
+
 #ifdef _WIN32
 #include <windows.h>
-#else
-#include <time.h>
-#include <unistd.h> // if you use usleep elsewhere
 #endif
 
 // A constant for deriving distinct seeds, using the golden ratio to ensure good distribution
@@ -23,7 +22,20 @@ void portable_sleep_ms(unsigned long ms) {
 #ifdef _WIN32
     Sleep(ms);
 #else
-    usleep(ms * 1000UL);
+    portable_sleep_us(ms * 1000UL);
+#endif
+}
+
+void portable_sleep_us(unsigned long microseconds) {
+#ifdef _WIN32
+    unsigned long milliseconds = (microseconds + 999UL) / 1000UL;
+    Sleep(milliseconds);
+#else
+    struct timespec delay = {
+        .tv_sec = (time_t)(microseconds / 1000000UL),
+        .tv_nsec = (long)((microseconds % 1000000UL) * 1000UL)
+    };
+    nanosleep(&delay, NULL);
 #endif
 }
 

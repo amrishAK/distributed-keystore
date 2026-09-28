@@ -1,0 +1,225 @@
+name: reusable-build-validation
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux GCC
+            os: ubuntu-24.04
+            preset: linux-gcc
+            compiler: gcc
+            c_compiler: gcc-13
+            cxx_compiler: g++-13
+          - name: Linux Clang
+            os: ubuntu-24.04
+            preset: linux-clang
+            compiler: clang
+            c_compiler: clang-18
+            cxx_compiler: clang++-18
+          - name: Windows MinGW
+            os: windows-2022
+            preset: windows-mingw
+            compiler: gcc
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up toolchain
+        uses: ./.github/actions/setup-toolchain
+        with:
+          compiler: ${{ matrix.compiler }}
+
+      - name: Verify compiler toolchain (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          ${{ matrix.c_compiler }} --version
+          ${{ matrix.cxx_compiler }} --version
+          cmake --version
+
+      - name: Verify compiler toolchain (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          gcc --version
+          g++ --version
+          cmake --version
+
+      - name: Configure and build (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cmake --preset ${{ matrix.preset }} \
+            -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+            -DCMAKE_CXX_COMPILER=${{ matrix.cxx_compiler }} \
+            -DBUILD_INTEGRATION_TESTS=ON
+          cmake --build --preset ${{ matrix.preset }} --parallel
+
+      - name: Configure and build (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          cmake --preset ${{ matrix.preset }} -DBUILD_INTEGRATION_TESTS=ON
+          cmake --build --preset ${{ matrix.preset }} --parallel
+
+      - name: Run unit tests (Linux)
+        if: runner.os == 'Linux'
+        run: ctest --test-dir build/${{ matrix.preset }} --output-on-failure -R '^unit_tests$' --no-tests=error
+
+      - name: Run unit tests (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: ctest --test-dir build/${{ matrix.preset }} --output-on-failure -R '^unit_tests$' --no-tests=error
+
+      - name: Run concurrency test (Linux)
+        if: runner.os == 'Linux'
+        run: ctest --test-dir build/${{ matrix.preset }} --output-on-failure -R '^concurrency_test$' --no-tests=error
+
+      - name: Run concurrency test (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: ctest --test-dir build/${{ matrix.preset }} --output-on-failure -R '^concurrency_test$' --no-tests=error
+
+      - name: Run integration tests when available (Linux)
+        if: runner.os == 'Linux'
+        run: >-
+          ctest --test-dir build/${{ matrix.preset }} --output-on-failure
+          -E '^(unit_tests|concurrency_test)$' --no-tests=ignore
+
+      - name: Run integration tests when available (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: >-
+          ctest --test-dir build/${{ matrix.preset }} --output-on-failure
+          -E '^(unit_tests|concurrency_test)$' --no-tests=ignore
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: test-logs-${{ matrix.preset }}
+          path: build/${{ matrix.preset }}/Testing/Temporary/
+          if-no-files-found: warn
+          retention-days: 30
+
+  coverage:
+    name: Linux GCC coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up toolchain
+        uses: ./.github/actions/setup-toolchain
+
+      - name: Verify coverage compiler toolchain
+        shell: bash
+        run: |
+          gcc-13 --version
+          g++-13 --version
+          gcov-13 --version
+          cmake --version
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Generate coverage report
+        run: |
+          cmake -S . -B build/coverage-gcc \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=gcc-13 \
+            -DCMAKE_CXX_COMPILER=g++-13 \
+            -DBUILD_UNIT_TESTS=ON \
+            -DBUILD_INTEGRATION_TESTS=ON \
+            -DBUILD_BENCHMARKS=OFF \
+            -DBUILD_COVERAGE=ON
+          cmake --build build/coverage-gcc --parallel
+          ctest --test-dir build/coverage-gcc --output-on-failure
+          python -m pip install --disable-pip-version-check gcovr==8.3
+          gcovr \
+            --root . \
+            --object-directory build/coverage-gcc \
+            --filter src/keystore/ \
+            --gcov-executable gcov-13 \
+            --gcov-ignore-parse-errors negative_hits.warn_once_per_file \
+            --html-details build/coverage-gcc/coverage/index.html \
+            --xml build/coverage-gcc/coverage/coverage.xml \
+            --print-summary \
+            --fail-under-line 85 \
+            build/coverage-gcc
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-linux-gcc
+          path: build/coverage-gcc/coverage/
+          if-no-files-found: error
+          retention-days: 30
+
+  sanitizer:
+    name: Linux GCC ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ASan and UBSan
+            sanitizers: address,undefined
+            runtime_options: ASAN_OPTIONS=halt_on_error=1:detect_leaks=1
+          - name: TSan
+            sanitizers: thread
+            runtime_options: TSAN_OPTIONS=halt_on_error=1
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up toolchain
+        uses: ./.github/actions/setup-toolchain
+
+      - name: Verify sanitizer compiler toolchain
+        shell: bash
+        run: |
+          gcc-13 --version
+          g++-13 --version
+          cmake --version
+
+      - name: Configure and build
+        run: |
+          cmake -S . -B build/sanitizer \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=gcc-13 \
+            -DCMAKE_CXX_COMPILER=g++-13 \
+            -DBUILD_UNIT_TESTS=ON \
+            -DBUILD_INTEGRATION_TESTS=ON \
+            -DBUILD_BENCHMARKS=OFF \
+            -DENABLE_SANITIZERS=${{ matrix.sanitizers }}
+          cmake --build build/sanitizer --parallel
+
+      - name: Run sanitizer tests
+        env:
+          SANITIZER_RUNTIME_OPTIONS: ${{ matrix.runtime_options }}
+        run: |
+          export "$SANITIZER_RUNTIME_OPTIONS"
+          ctest --test-dir build/sanitizer --output-on-failure
+
+      - name: Upload sanitizer test logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sanitizer-test-logs-${{ matrix.sanitizers }}
+          path: build/sanitizer/Testing/Temporary/
+          if-no-files-found: warn
+          retention-days: 30

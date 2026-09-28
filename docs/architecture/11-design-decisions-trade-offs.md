@@ -143,7 +143,7 @@ Locks are never held simultaneously.
 
 **Trade-off:** Caller must remember to free buffers returned by `get_key()`. Future versions may provide a convenience function `get_key_free()` to simplify cleanup.
 
-**See also:** [13-public-api-surface.md](13-public-api-surface.md), [DESIGN_DECISIONS.md](../../DESIGN_DECISIONS.md)
+**See also:** [API.md](../../API.md), [DESIGN_DECISIONS.md](../DESIGN_DECISIONS.md)
 
 ---
 

@@ -33,8 +33,8 @@ int hash_bucket_resize_worker(void* input_arg)
     
     _perform_hash_bucket_resizing(hash_bucket_ptr, new_config, 3);
 
-    //acquire resizing lock
-    pthread_mutex_lock(&hash_bucket_ptr->resizing_lock);
+    // Exclusive lock guarantees no fast-path operation is still inside the snapshot before it is freed
+    pthread_rwlock_wrlock(&hash_bucket_ptr->resizing_lock);
 
     _finalize_hash_bucket_resizing(hash_bucket_ptr, new_config);
 
@@ -43,7 +43,7 @@ int hash_bucket_resize_worker(void* input_arg)
     free_memory(hash_bucket_ptr->resizing_buffer_ptr, false);
     hash_bucket_ptr->resizing_buffer_ptr = NULL;
     hash_bucket_ptr->is_resizing = false;
-    pthread_mutex_unlock(&hash_bucket_ptr->resizing_lock);
+    pthread_rwlock_unlock(&hash_bucket_ptr->resizing_lock);
 
     return SUCCESS;
 }
@@ -77,8 +77,10 @@ int _perform_hash_bucket_resizing(hash_bucket* hash_bucket_ptr, sub_hash_table_c
         int create_result = create_new_sub_hash_table(new_config, true, &new_sub_hash_table_ptr);
 
         if(new_sub_hash_table_ptr != NULL) {
+            // Readers of new_sub_hash_table_ptr hold resizing_lock exclusively, so publish under it
+            pthread_rwlock_wrlock(&hash_bucket_ptr->resizing_lock);
             hash_bucket_ptr->resizing_buffer_ptr->new_sub_hash_table_ptr = new_sub_hash_table_ptr;
-            
+            pthread_rwlock_unlock(&hash_bucket_ptr->resizing_lock);
         }
         else
         {
@@ -120,11 +122,15 @@ int _perform_hash_bucket_resizing(hash_bucket* hash_bucket_ptr, sub_hash_table_c
             attempt_result = create_result;
         }
 
-        // Cleanup on failure before retrying
-        if(hash_bucket_ptr->resizing_buffer_ptr->new_sub_hash_table_ptr != NULL) {
-            cleanup_sub_hash_table(hash_bucket_ptr->resizing_buffer_ptr->new_sub_hash_table_ptr);
-            free_memory(hash_bucket_ptr->resizing_buffer_ptr->new_sub_hash_table_ptr, false);
-            hash_bucket_ptr->resizing_buffer_ptr->new_sub_hash_table_ptr = NULL;
+        // Cleanup on failure before retrying: unpublish under the lock, then free once unreachable
+        pthread_rwlock_wrlock(&hash_bucket_ptr->resizing_lock);
+        sub_hash_table_memory_pool* failed_sub_hash_table_ptr = hash_bucket_ptr->resizing_buffer_ptr->new_sub_hash_table_ptr;
+        hash_bucket_ptr->resizing_buffer_ptr->new_sub_hash_table_ptr = NULL;
+        pthread_rwlock_unlock(&hash_bucket_ptr->resizing_lock);
+
+        if(failed_sub_hash_table_ptr != NULL) {
+            cleanup_sub_hash_table(failed_sub_hash_table_ptr);
+            free_memory(failed_sub_hash_table_ptr, false);
         }
     }
 

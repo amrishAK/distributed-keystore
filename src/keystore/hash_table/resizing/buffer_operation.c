@@ -6,10 +6,10 @@
 #include "sub_hash_table/sub_hash_table_operation.h"
 #include "utils/memory_manager.h"
 #include "utils/background_task_manager.h"
+#include "utils/helper_functions.h"
 
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
 
 
 #pragma region  Private Function Declarations
@@ -60,12 +60,12 @@ int chase_buffer_worker(void* input_arg)
         pthread_spin_unlock(&new_operation_buffer_ptr->buffer_lock);
 
         if(head_ptr == NULL || tail_ptr == NULL) {
-            usleep(100); continue;
+            portable_sleep_us(100); continue;
         }
     
         consumer_ptr = consumer_ptr ? consumer_ptr->prev_node_ptr : tail_ptr;
         if(consumer_ptr == NULL || consumer_ptr == head_ptr) {
-            usleep(100); continue;
+            portable_sleep_us(100); continue;
         }
 
         int result  = _commit_data_node_operation(consumer_ptr->data_node_ptr, target_sub_hash_table_ptr);
@@ -78,7 +78,7 @@ int chase_buffer_worker(void* input_arg)
 
         if(result != SUCCESS) return result; // Propagate error if commit operation failed
 
-        usleep(100); // Sleep for 100 microseconds
+        portable_sleep_us(100);
     }
 
     

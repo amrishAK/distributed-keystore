@@ -6,7 +6,6 @@
 #include <stdio.h>
 
 #include "multi_thread_models.h"
-#include "utils/memory_manager.h"
 
 typedef struct
 {
@@ -36,7 +35,6 @@ typedef struct
     uint64_t latency_p95_ns;
     uint64_t latency_p99_ns;
     uint64_t latency_max_ns;
-    memory_allocator_metrics allocator;
 } mt_result;
 
 int run_multi_thread_scenario(const mt_scenario *scenario, mt_result *result);

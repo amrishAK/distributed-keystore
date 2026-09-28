@@ -673,8 +673,6 @@ run_multi_thread_scenario(const mt_scenario *scenario, mt_result *result)
         return ERR_FAILURE;
     }
 
-    reset_memory_allocator_metrics();
-
     atomic_store(&g_set_count, 0UL);
     atomic_store(&g_get_count, 0UL);
     atomic_store(&g_delete_count, 0UL);
@@ -784,7 +782,6 @@ run_multi_thread_scenario(const mt_scenario *scenario, mt_result *result)
     }
     result->verification_passed = result->failure_count == 0UL && result->missing_count == 0UL;
     result->latency_measured = scenario->measure_latency;
-    result->allocator = get_memory_allocator_metrics();
     result->max_chain_depth = get_key_store_max_chain_depth();
     summarize_latency(&latencies, result);
     if (timeline_initialized)
@@ -824,7 +821,7 @@ print_multi_thread_result_json(FILE *stream, const mt_result *result)
     }
 
         fprintf(stream,
-            "{\"run_id\":\"%s\",\"run_index\":%u,\"test_id\":\"%s\",\"family\":\"%s\",\"category\":\"%s\",\"title\":\"%s\",\"workload\":\"%s\",\"kind\":%d,\"repetitions\":%u,\"warmup_duration_seconds\":%.2f,\"measurement_duration_seconds\":%.2f,\"threads\":%u,\"variant\":\"%s\",\"key_distribution\":\"%s\",\"distribution\":\"%s\",\"bucket_size\":%u,\"sub_bucket_size\":%u,\"max_chain_length\":%u,\"pre_allocation_factor\":%.2f,\"keyspace_size\":%zu,\"value_size_bytes\":%zu,\"set_ratio\":%.2f,\"get_ratio\":%.2f,\"delete_ratio\":%.2f,\"timed_operations\":%lu,\"elapsed_seconds\":%.6f,\"mean_ops_sec\":%.2f,\"median_ops_sec\":%.2f,\"stdev_ops_sec\":%.2f,\"cv_ops_sec\":%.6f,\"throughput_ops_sec\":%.2f,\"peak_rss_kb\":%lu,\"rss_delta_kb\":%lu,\"resize_count\":%lu,\"max_chain_depth\":%u,\"resize_events_timeline\":\"%s\",\"set_operations\":%lu,\"get_operations\":%lu,\"delete_operations\":%lu,\"failure_count\":%lu,\"missing_count\":%lu,\"verification_passed\":%s,\"latency_measured\":%s,\"latency_p50_ns\":%" PRIu64 ",\"latency_p95_ns\":%" PRIu64 ",\"latency_p99_ns\":%" PRIu64 ",\"latency_max_ns\":%" PRIu64 ",\"allocator_calls\":{\"malloc\":%lu,\"calloc\":%lu,\"realloc\":%lu,\"free\":%lu},\"allocator_slow_path_count\":%lu}\n",
+            "{\"run_id\":\"%s\",\"run_index\":%u,\"test_id\":\"%s\",\"family\":\"%s\",\"category\":\"%s\",\"title\":\"%s\",\"workload\":\"%s\",\"kind\":%d,\"repetitions\":%u,\"warmup_duration_seconds\":%.2f,\"measurement_duration_seconds\":%.2f,\"threads\":%u,\"variant\":\"%s\",\"key_distribution\":\"%s\",\"distribution\":\"%s\",\"bucket_size\":%u,\"sub_bucket_size\":%u,\"max_chain_length\":%u,\"pre_allocation_factor\":%.2f,\"keyspace_size\":%zu,\"value_size_bytes\":%zu,\"set_ratio\":%.2f,\"get_ratio\":%.2f,\"delete_ratio\":%.2f,\"timed_operations\":%lu,\"elapsed_seconds\":%.6f,\"mean_ops_sec\":%.2f,\"median_ops_sec\":%.2f,\"stdev_ops_sec\":%.2f,\"cv_ops_sec\":%.6f,\"throughput_ops_sec\":%.2f,\"peak_rss_kb\":%lu,\"rss_delta_kb\":%lu,\"resize_count\":%lu,\"max_chain_depth\":%u,\"resize_events_timeline\":\"%s\",\"set_operations\":%lu,\"get_operations\":%lu,\"delete_operations\":%lu,\"failure_count\":%lu,\"missing_count\":%lu,\"verification_passed\":%s,\"latency_measured\":%s,\"latency_p50_ns\":%" PRIu64 ",\"latency_p95_ns\":%" PRIu64 ",\"latency_p99_ns\":%" PRIu64 ",\"latency_max_ns\":%" PRIu64 "}\n",
             result->run_id == NULL ? "" : result->run_id,
             result->run_index,
             scenario->test_id,
@@ -871,10 +868,5 @@ print_multi_thread_result_json(FILE *stream, const mt_result *result)
             result->latency_p50_ns,
             result->latency_p95_ns,
             result->latency_p99_ns,
-            result->latency_max_ns,
-            result->allocator.malloc_calls,
-            result->allocator.calloc_calls,
-            result->allocator.realloc_calls,
-            result->allocator.free_calls,
-            result->allocator.slow_path_allocations);
+            result->latency_max_ns);
 }

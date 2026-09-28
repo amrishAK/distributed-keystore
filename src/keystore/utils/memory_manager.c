@@ -5,7 +5,6 @@
 #pragma region Private Global Variables
 static memory_pool g_list_pool = {0};
 static memory_manager_config g_config = {0};
-static memory_allocator_metrics g_allocator_metrics = {0};
 
 #pragma endregion
 
@@ -16,6 +15,8 @@ static void* _allocate_memory_from_pool(memory_pool *memory_pool);
 static void _free_memory_to_pool(memory_pool *memory_pool, void *ptr);
 static bool _is_pointer_from_pool (memory_pool *pool, void *ptr);
 static int _cleanup_memory_pool(memory_pool *pool);
+static void _lock_pool(memory_pool *pool);
+static void _unlock_pool(memory_pool *pool);
 
 #pragma endregion
 
@@ -54,19 +55,16 @@ void* allocate_memory_from_pool()
         return _allocate_memory_from_pool(&g_list_pool);
     }
 
-    ++g_allocator_metrics.malloc_calls;
     return malloc(sizeof(linked_list_node));
 }
 
 void* allocate_memory(size_t size)
 {
-    ++g_allocator_metrics.malloc_calls;
     return malloc(size);
 }
 
 void* callocate_memory(size_t num, size_t size)
 {
-    ++g_allocator_metrics.calloc_calls;
     return calloc(num, size);
 }
 
@@ -79,7 +77,6 @@ void free_memory(void *ptr, bool is_pool)
     }
     else
     {
-        ++g_allocator_metrics.free_calls;
         free(ptr);
     }
 }
@@ -88,32 +85,19 @@ void* reallocate_memory(void *ptr, size_t new_size)
 {
     if (ptr == NULL)
     {
-        ++g_allocator_metrics.malloc_calls;
         return malloc(new_size); // Standard realloc behavior
     }
 
     if(new_size == 0)
     {
-        ++g_allocator_metrics.free_calls;
         free(ptr);
         return NULL; // Free memory if new size is zero
     }
 
-    ++g_allocator_metrics.realloc_calls;
     void *new_ptr = realloc(ptr, new_size);
     if (new_ptr == NULL) return NULL; // Handle reallocation failure
 
     return new_ptr;
-}
-
-void reset_memory_allocator_metrics(void)
-{
-    g_allocator_metrics = (memory_allocator_metrics){0};
-}
-
-memory_allocator_metrics get_memory_allocator_metrics(void)
-{
-    return g_allocator_metrics;
 }
 
 #pragma endregion
@@ -144,27 +128,27 @@ int _create_memory_pool(memory_pool *pool, size_t block_size)
     pool->reusable_blocks = 0;
     pool->is_initialized = false;
 
-    // The allocator can be reached concurrently via background resize workers
-    // even in benchmark "single-thread" scenarios, so pool metadata must
-    // always be guarded.
-    if(pthread_mutex_init(&pool->pool_lock, NULL) != 0) return ERR_RESOURCE_INIT_FAILED; // Mutex initialization failed
+    if(g_config.is_concurrency_enabled)
+    {
+        // Only initialize the mutex when the pool is expected to be accessed
+        // concurrently; the single-thread path remains lock-free.
+        if(pthread_mutex_init(&pool->pool_lock, NULL) != 0) return ERR_RESOURCE_INIT_FAILED; // Mutex initialization failed
+    }
 
     // Allocate memory for the pool
-    ++g_allocator_metrics.malloc_calls;
     pool->next_block_ptr = malloc(block_size * pool->total_blocks);
     if(pool->next_block_ptr == NULL) {
-        pthread_mutex_destroy(&pool->pool_lock);
+        if(g_config.is_concurrency_enabled) pthread_mutex_destroy(&pool->pool_lock);
         return ERR_MEMORY_ALLOCATION_FAILED; // Memory allocation failed
     }
 
     // Allocate memory for the free block list
-    ++g_allocator_metrics.malloc_calls;
     pool->free_block_list = (void **)malloc(sizeof(void *) * pool->total_blocks);
     if(pool->free_block_list == NULL)
     {
         free(pool->next_block_ptr);
         pool->next_block_ptr = NULL;
-        pthread_mutex_destroy(&pool->pool_lock);
+        if(g_config.is_concurrency_enabled) pthread_mutex_destroy(&pool->pool_lock);
         return ERR_MEMORY_ALLOCATION_FAILED; // Memory allocation failed
     }
 
@@ -191,7 +175,7 @@ int _create_memory_pool(memory_pool *pool, size_t block_size)
  */
 void* _allocate_memory_from_pool(memory_pool *memory_pool)
 {
-    pthread_mutex_lock(&memory_pool->pool_lock);
+    _lock_pool(memory_pool);
 
     void* mem = NULL;
 
@@ -211,14 +195,12 @@ void* _allocate_memory_from_pool(memory_pool *memory_pool)
             }
             else
             {
-                ++g_allocator_metrics.malloc_calls;
-                ++g_allocator_metrics.slow_path_allocations;
                 mem = malloc(memory_pool->block_size); // Fallback to standard malloc if pool is exhausted
             }
         }
     }
 
-    pthread_mutex_unlock(&memory_pool->pool_lock);
+    _unlock_pool(memory_pool);
     return mem;
 }
 
@@ -238,9 +220,9 @@ void _free_memory_to_pool(memory_pool *memory_pool, void *ptr)
     bool std_cleanup = true;
 
     if(memory_pool->is_initialized)
-    {    
-        pthread_mutex_lock(&memory_pool->pool_lock);
-        
+    {
+        _lock_pool(memory_pool);
+
         if(_is_pointer_from_pool(memory_pool, ptr))
         {
            if(memory_pool->reusable_blocks < memory_pool->total_blocks)
@@ -250,12 +232,11 @@ void _free_memory_to_pool(memory_pool *memory_pool, void *ptr)
             }
         }
 
-        pthread_mutex_unlock(&memory_pool->pool_lock);
+        _unlock_pool(memory_pool);
     }
 
     if(std_cleanup)
     {
-        ++g_allocator_metrics.free_calls;
         free(ptr); // Fallback to standard free if not from pool or pool is full
     }
 }
@@ -302,20 +283,18 @@ int _cleanup_memory_pool(memory_pool *pool)
     // pool_start_ptr holds the original malloc address; next_block_ptr advances
     // during allocation and must NOT be freed directly.
     if(pool->pool_start_ptr) {
-        ++g_allocator_metrics.free_calls;
         free(pool->pool_start_ptr);
         pool->pool_start_ptr = NULL;
         pool->pool_end_ptr = NULL;
         pool->next_block_ptr = NULL;
     }
     if(pool->free_block_list) {
-        ++g_allocator_metrics.free_calls;
         free(pool->free_block_list);
         pool->free_block_list = NULL;
     }
 
     // Destroy mutex if needed
-    if(pool->is_initialized) {
+    if(pool->is_initialized && g_config.is_concurrency_enabled) {
         pthread_mutex_destroy(&pool->pool_lock);
     }
 
@@ -327,6 +306,24 @@ int _cleanup_memory_pool(memory_pool *pool)
     pool->is_initialized = false;
 
     return SUCCESS;
+}
+
+static void _lock_pool(memory_pool *pool)
+{
+    if(pool == NULL || !pool->is_initialized || !g_config.is_concurrency_enabled) {
+        return;
+    }
+
+    pthread_mutex_lock(&pool->pool_lock);
+}
+
+static void _unlock_pool(memory_pool *pool)
+{
+    if(pool == NULL || !pool->is_initialized || !g_config.is_concurrency_enabled) {
+        return;
+    }
+
+    pthread_mutex_unlock(&pool->pool_lock);
 }
 
 #pragma endregion

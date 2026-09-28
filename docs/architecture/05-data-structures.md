@@ -54,8 +54,8 @@ hash_table_memory_pool
     │
     └── sub_hash_bucket [one per sub-level slot; index = sub_bucket_hash & (total_blocks - 1)]
         ├── linked_list_head ──────────────────┐
-        ├── active_node_count                  │ (soft-deleted nodes not counted)
-        ├── total_node_count                   │ (active + soft-deleted)
+        ├── active_node_count                  │ (atomic; soft-deleted nodes not counted)
+        ├── total_node_count                   │ (atomic; active + soft-deleted)
         ├── max_linked_list_chain_length       │
         ├── is_bloom_filter_enabled (bool)     │
         ├── bloom_filter_ptr                   │ (non-NULL if enabled)
@@ -263,36 +263,14 @@ memory_pool (per sub-hash-table)
 
 See [Memory Management](09-memory-management.md) for detailed ownership semantics and cleanup policy.
 
+The pool mutex is initialized only for concurrent configurations. Single-threaded
+configurations use the same pool metadata without lock overhead.
+
 ---
 
-## 8. Internal Operation Counters
-
-The implementation maintains global and per-operation counters for instrumentation and diagnostics. These are updated during CRUD operations but **are not part of the stable public API** (no public query function currently exposes them).
-
-```text
-g_data_node_operation_counters (global, thread-safe via atomic operations)
-├── successful_read_operations (atomic counter)
-├── successful_create_operations
-├── successful_update_operations
-├── successful_delete_operations
-├── successful_soft_delete_operations
-├── failed_read_operations
-├── failed_create_operations
-├── failed_update_operations
-├── failed_delete_operations
-├── failed_soft_delete_operations
-└── error_code_counters[100] (frequency map of error codes)
-```
-
-**Purpose:**
-- **Development & debugging** — See operation frequency patterns and failure modes
-- **Performance tuning** — Identify bottleneck operations (e.g., many failed creates → resize triggered often)
-- **Stress testing** — Validate correctness under high concurrency (counter consistency checks)
-
-**Current limitations:**
-- Counters are internal instrumentation only; no public query API
-- Thread-safe via `atomic_load` / `atomic_add` but not exposed in the public `key_store.h`
-- Future enhancement: expose via a `keystore_get_stats()` function (see [docs/DESIGN_DECISIONS.md](../DESIGN_DECISIONS.md) for Future Work)
+The `active_node_count` and `total_node_count` fields remain live C11 atomic
+metadata because insert, delete, and resize paths use them for concurrent
+bookkeeping.
 
 ---
 

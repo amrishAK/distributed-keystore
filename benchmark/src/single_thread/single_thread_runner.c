@@ -627,8 +627,6 @@ int run_single_thread_scenario(const bench_scenario *scenario, bench_result *res
         return ERR_FAILURE;
     }
 
-    reset_memory_allocator_metrics();
-
     unsigned long rss_start_kb = read_current_rss_kb();
     key_slot *slots = create_key_slots(scenario->test_id, scenario->keyspace_size, scenario->low_entropy_keys);
     unsigned char *value_buffer = create_value_buffer(scenario->value_size, (unsigned char)(hash_string(scenario->test_id) & 0xFFU));
@@ -700,7 +698,6 @@ int run_single_thread_scenario(const bench_scenario *scenario, bench_result *res
     result->success_count = counters.success_count;
     result->failure_count = counters.failure_count;
     result->missing_count = counters.missing_count;
-    result->allocator = get_memory_allocator_metrics();
     result->max_chain_depth = 0;
 
     summarize_latency(&latencies, result);
@@ -730,7 +727,7 @@ void print_single_thread_result_json(FILE *stream, const bench_result *result)
     }
 
     fprintf(stream,
-            "{\"run_id\":\"%s\",\"run_index\":%u,\"test_id\":\"%s\",\"title\":\"%s\",\"category\":\"%s\",\"kind\":%d,\"bucket_size\":%u,\"sub_bucket_size\":%u,\"max_chain_length\":%u,\"pre_allocation_factor\":%.2f,\"warmup_seconds\":%.2f,\"measure_seconds\":%.2f,\"variant\":\"%s\",\"distribution\":\"%s\",\"value_size_bytes\":%zu,\"keyspace_size\":%zu,\"operations\":%zu,\"elapsed_seconds\":%.6f,\"mean_ops_sec\":%.2f,\"median_ops_sec\":%.2f,\"stdev_ops_sec\":%.2f,\"cv_ops_sec\":%.6f,\"throughput_ops_sec\":%.2f,\"peak_rss_kb\":%lu,\"rss_delta_kb\":%lu,\"resize_count\":%u,\"max_chain_depth\":%u,\"resize_events_timeline\":\"%s\",\"success_count\":%lu,\"failure_count\":%lu,\"missing_count\":%lu,\"verification_passed\":%s,\"latency_measured\":%s,\"latency_p50_ns\":%" PRIu64 ",\"latency_p95_ns\":%" PRIu64 ",\"latency_p99_ns\":%" PRIu64 ",\"latency_max_ns\":%" PRIu64 ",\"allocator_calls\":{\"malloc\":%lu,\"calloc\":%lu,\"realloc\":%lu,\"free\":%lu},\"allocator_slow_path_count\":%lu}\n",
+            "{\"run_id\":\"%s\",\"run_index\":%u,\"test_id\":\"%s\",\"title\":\"%s\",\"category\":\"%s\",\"kind\":%d,\"bucket_size\":%u,\"sub_bucket_size\":%u,\"max_chain_length\":%u,\"pre_allocation_factor\":%.2f,\"warmup_seconds\":%.2f,\"measure_seconds\":%.2f,\"variant\":\"%s\",\"distribution\":\"%s\",\"value_size_bytes\":%zu,\"keyspace_size\":%zu,\"operations\":%zu,\"elapsed_seconds\":%.6f,\"mean_ops_sec\":%.2f,\"median_ops_sec\":%.2f,\"stdev_ops_sec\":%.2f,\"cv_ops_sec\":%.6f,\"throughput_ops_sec\":%.2f,\"peak_rss_kb\":%lu,\"rss_delta_kb\":%lu,\"resize_count\":%u,\"max_chain_depth\":%u,\"resize_events_timeline\":\"%s\",\"success_count\":%lu,\"failure_count\":%lu,\"missing_count\":%lu,\"verification_passed\":%s,\"latency_measured\":%s,\"latency_p50_ns\":%" PRIu64 ",\"latency_p95_ns\":%" PRIu64 ",\"latency_p99_ns\":%" PRIu64 ",\"latency_max_ns\":%" PRIu64 "}\n",
             result->run_id == NULL ? "" : result->run_id,
             result->run_index,
             scenario->test_id,
@@ -767,10 +764,5 @@ void print_single_thread_result_json(FILE *stream, const bench_result *result)
             result->latency_p50_ns,
             result->latency_p95_ns,
             result->latency_p99_ns,
-            result->latency_max_ns,
-            result->allocator.malloc_calls,
-            result->allocator.calloc_calls,
-            result->allocator.realloc_calls,
-            result->allocator.free_calls,
-            result->allocator.slow_path_allocations);
+            result->latency_max_ns);
 }

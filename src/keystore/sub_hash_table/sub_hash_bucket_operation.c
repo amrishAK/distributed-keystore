@@ -7,6 +7,7 @@
 #include "operation_handlers/coordination_handler.h"
 
 #include <stdio.h>
+#include <stdatomic.h>
 
 #pragma region private Concurrency Lock Wrapper Declarations
 static int _check_for_resize_condition(sub_hash_bucket* sub_hash_bucket_ptr);
@@ -122,8 +123,8 @@ int add_node_to_sub_hash_bucket(sub_hash_bucket_operation_args args, key_value_p
         return result;
     }
 
-    args.sub_hash_bucket_ptr->active_node_count++;
-    args.sub_hash_bucket_ptr->total_node_count++;
+    atomic_fetch_add_explicit(&args.sub_hash_bucket_ptr->active_node_count, 1, memory_order_relaxed);
+    atomic_fetch_add_explicit(&args.sub_hash_bucket_ptr->total_node_count, 1, memory_order_relaxed);
 
     result =  _check_for_resize_condition(args.sub_hash_bucket_ptr);
 
@@ -157,7 +158,7 @@ int delete_key_from_sub_hash_bucket(sub_hash_bucket_operation_args args)
     result = soft_delete(target_data_node, args.sub_hash_bucket_ptr->is_concurrency_enabled);
 
     if (result == SUCCESS) {
-        args.sub_hash_bucket_ptr->active_node_count--;
+        atomic_fetch_sub_explicit(&args.sub_hash_bucket_ptr->active_node_count, 1, memory_order_relaxed);
     }
 
     return result;
@@ -184,12 +185,14 @@ int _check_for_resize_condition(sub_hash_bucket* sub_hash_bucket_ptr)
     if(sub_hash_bucket_ptr == NULL) return ERR_INVALID_ARGUMENT;
 
     // Check if the total node count exceeds the maximum linked list chain length threshold
-    if(sub_hash_bucket_ptr->total_node_count <= sub_hash_bucket_ptr->max_linked_list_chain_length) {
+    unsigned int total_node_count = atomic_load_explicit(&sub_hash_bucket_ptr->total_node_count, memory_order_relaxed);
+    if(total_node_count <= sub_hash_bucket_ptr->max_linked_list_chain_length) {
         return SUCCESS; // No resize needed
     }
 
     // if total_node_count and active_node_count are equal, no soft deleted nodes to reclaim - need to resize
-    if(sub_hash_bucket_ptr->active_node_count == sub_hash_bucket_ptr->total_node_count) {
+    unsigned int active_node_count = atomic_load_explicit(&sub_hash_bucket_ptr->active_node_count, memory_order_relaxed);
+    if(active_node_count == total_node_count) {
         return SUCESS_ADDED_NEW_NODE_RESZING_TRIGGERED; // Indicate that resizing is needed
     }
 
@@ -202,10 +205,11 @@ int _check_for_resize_condition(sub_hash_bucket* sub_hash_bucket_ptr)
         return cleanup_result; // Error handling: failed to cleanup deleted linked list nodes
     }
 
-    sub_hash_bucket_ptr->total_node_count -= deleted_count; // Update total node count after cleanup
+    // Update total node count after cleanup
+    total_node_count = atomic_fetch_sub_explicit(&sub_hash_bucket_ptr->total_node_count, deleted_count, memory_order_relaxed) - deleted_count;
 
     // After cleanup, check if we still need to resize
-    if(sub_hash_bucket_ptr->total_node_count >= sub_hash_bucket_ptr->max_linked_list_chain_length) {
+    if(total_node_count >= sub_hash_bucket_ptr->max_linked_list_chain_length) {
         return SUCESS_ADDED_NEW_NODE_RESZING_TRIGGERED; // Indicate that resizing is needed
     }
 

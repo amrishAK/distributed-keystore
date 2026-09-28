@@ -14,9 +14,11 @@ The architecture guide is now split into section-based sub-documents under [docs
 8. [Dynamic Resizing Architecture](./architecture/08-dynamic-resizing.md)
 9. [Memory Management](./architecture/09-memory-management.md)
 10. [Background Task Manager](./architecture/10-background-task-manager.md)
-11. [Error Handling Model](./architecture/11-error-handling.md)
-12. [Public API Surface](./architecture/13-public-api-surface.md)
-13. [Design Decisions & Trade-offs](./architecture/14-design-decisions-trade-offs.md)
+11. [Design Decisions & Trade-offs](./architecture/11-design-decisions-trade-offs.md)
+
+## Navigation
+
+For quick design rationale and known limitations, see [DESIGN_DECISIONS.md](./DESIGN_DECISIONS.md) at root level.
 
 ## Notes
 

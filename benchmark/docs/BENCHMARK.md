@@ -92,7 +92,7 @@ verification_passed == true   // Post-run validation passed
 **Statistics Per Run:**
 - Throughput: ops/sec (mean, median, stdev, CV)
 - Latency: p50, p95, p99, max (in nanoseconds)
-- Memory: peak RSS, RSS delta, allocator calls
+- Memory: peak RSS, RSS delta
 
 **Output:** 
 - Single-threaded: CSV (one row per run)

@@ -8,7 +8,6 @@
 int _allocate_and_init_data_node(size_t key_len, bool is_concurrency_enabled, data_node** data_node_ptr);
 int _add_data_to_node(data_node *node_ptr, key_value_pair* key_pair);
 int _add_key_to_node(data_node *node_ptr, const char *key, size_t key_len, composite_key_hash key_hash);
-int _update_operation_counters(data_node_operation_t operation_type, int operation_result);
 #pragma endregion
 
 #pragma region Private Function Declarations
@@ -20,41 +19,27 @@ int _soft_delete_data_node(data_node* data_node_ptr);
 #pragma endregion
 
 
-#pragma region global Variables
-data_node_operation_stats g_data_node_operation_counters = {0};
-#pragma endregion
-
-
 #pragma region Public Function Definitions
 
 int create_new_data_node(composite_key_hash key_hash, key_value_pair* kv_pair, bool is_concurrency_enabled, data_node** new_data_node_out) 
 {
-    int result = _create_new_data_node(key_hash, kv_pair, is_concurrency_enabled, new_data_node_out);
-    return _update_operation_counters(CREATE_NODE, result);
+    return _create_new_data_node(key_hash, kv_pair, is_concurrency_enabled, new_data_node_out);
 }
 
 int edit_data_node_value(data_node *data_node_ptr, key_value_pair* new_kv_pair) {
-
-    int result = _edit_data_node_value(data_node_ptr, new_kv_pair);
-    return _update_operation_counters(UPDATE_NODE, result);
+    return _edit_data_node_value(data_node_ptr, new_kv_pair);
 }
 
 int read_data_node_value(data_node* data_node_ptr, key_value_pair* kv_pair_out) {
-
-    int result = _read_data_from_node(data_node_ptr, kv_pair_out);
-    return _update_operation_counters(READ_NODE, result);
+    return _read_data_from_node(data_node_ptr, kv_pair_out);
 }
 
 int delete_data_node(data_node *data_node_ptr) {
-
-    int result = _delete_data_node(data_node_ptr);
-    return _update_operation_counters(DELETE_NODE, result);
+    return _delete_data_node(data_node_ptr);
 }
 
 int soft_delete_data_node(data_node* data_node_ptr) {
-
-    int result = _soft_delete_data_node(data_node_ptr);
-    return _update_operation_counters(SOFT_DELETE_NODE, result);
+    return _soft_delete_data_node(data_node_ptr);
 }
 
 #pragma endregion
@@ -259,58 +244,6 @@ int _add_key_to_node(data_node *node_ptr, const char *key, size_t key_len, compo
     node_ptr->key_hash = key_hash;
 
     return 0;
-}
-
-int _update_operation_counters(data_node_operation_t operation_type, int operation_result) 
-{
-    switch(operation_type) {
-        case CREATE_NODE:
-            if (operation_result == SUCCESS) {
-                g_data_node_operation_counters.successful_create_operations++;
-            } else {
-                g_data_node_operation_counters.failed_create_operations++;
-            }
-            break;
-        case DELETE_NODE:
-            if (operation_result == SUCCESS) {
-                g_data_node_operation_counters.successful_delete_operations++;
-            } else {
-                g_data_node_operation_counters.failed_delete_operations++;
-            }
-            break;
-        case SOFT_DELETE_NODE:
-            if (operation_result == SUCCESS) {
-                g_data_node_operation_counters.successful_soft_delete_operations++;
-            } else {
-                g_data_node_operation_counters.failed_soft_delete_operations++;
-            }
-            break;
-        case UPDATE_NODE:
-            if (operation_result == SUCCESS) {
-                g_data_node_operation_counters.successful_update_operations++;
-            } else {
-                g_data_node_operation_counters.failed_update_operations++;
-            }
-            break;
-        case READ_NODE:
-            if (operation_result == SUCCESS) {
-                g_data_node_operation_counters.successful_read_operations++;
-            } else {
-                g_data_node_operation_counters.failed_read_operations++;
-            }
-            break;
-        default:
-            break;
-    }
-
-    if (operation_result < 0) {
-        int error_index = -operation_result;
-        if (error_index < 100) {
-            g_data_node_operation_counters.error_code_counters[error_index]++;
-        }
-    }
-
-    return operation_result;
 }
 
 #pragma endregion
